@@ -157,6 +157,10 @@ python main.py
     -   `Ctrl + N`: Create a new Note at the cursor's position.
     -   `Delete`: Delete any selected item (node, frame, note, etc.).
 
+---
+Known issues: The graph generation is very brittle and not very stable. Note: Larger models do handle chart data far better than smaller models, however the system requirements to use the larger models is significantly larger. 
+---
+
 ## Contributing
 
 Contributions are welcome! If you'd like to contribute, please follow these steps:
