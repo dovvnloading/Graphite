@@ -1,0 +1,23 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.9.34607.119
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "graphite_app", "graphite_app\graphite_app.pyproj", "{012BB263-7B27-4708-939C-19A2ECC6AA24}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{012BB263-7B27-4708-939C-19A2ECC6AA24}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{012BB263-7B27-4708-939C-19A2ECC6AA24}.Release|Any CPU.ActiveCfg = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {B4880855-9191-4230-A832-DCF0B3445933}
+	EndGlobalSection
+EndGlobal
