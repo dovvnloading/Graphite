@@ -1,12 +1,12 @@
 # Graphite: A Visual Node-Based LLM Interface
 
-![License](https://img.shields.io/badge/License-MIT-green.svg)![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)![Framework](https://img.shields.io/badge/Framework-PyQt5-orange.svg)![GitHub stars](https://img.shields.io/github/stars/dovvnloading/Graphite?style=social)![GitHub forks](https://img.shields.io/github/forks/dovvnloading/Graphite?style=social)
+![License](https://img.shields.io/badge/License-MIT-green.svg) ![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg) ![Framework](https://img.shields.io/badge/Framework-PySide6-blue.svg) ![GitHub stars](https://img.shields.io/github/stars/dovvnloading/Graphite?style=social) ![GitHub forks](https://img.shields.io/github/forks/dovvnloading/Graphite?style=social)
 
 <p align="center">
   <img width="1920" height="1032" alt="Graphite Main Interface" src="https://github.com/user-attachments/assets/1c86682f-b62f-418c-ac1d-db385e432b16">
 </p>
 
-Graphite is a sophisticated desktop application that revolutionizes interaction with Large Language Models (LLMs). It transforms standard linear chat conversations into a dynamic, non-linear visual workspace. Built with Python and PyQt5, Graphite leverages local LLMs via Ollama to provide a secure, private, and powerful tool for brainstorming, research, and complex problem-solving.
+Graphite is a sophisticated desktop application that revolutionizes interaction with Large Language Models (LLMs). It transforms standard linear chat conversations into a dynamic, non-linear visual workspace. Built with Python and PySide6, Graphite leverages local LLMs via Ollama to provide a secure, private, and powerful tool for brainstorming, research, and complex problem-solving.
 
 ## Table of Contents
 
@@ -31,6 +31,7 @@ Graphite solves this by treating every conversation as an interactive mind-map o
 - **Node-Based Visual Interface:** Move beyond linear text logs. Every interaction is a movable, selectable node on an infinite canvas.
 - **Non-Linear Conversation Flow:** Branch your conversation from any previous node to explore alternative ideas without losing context.
 - **Local and Private LLM Integration:** Powered by **Ollama**, all AI processing happens locally. Your conversations are never sent to the cloud, ensuring 100% privacy.
+- **Flexible Model Selection:** Choose from a list of popular preset models or specify any custom model compatible with Ollama. The application validates and ensures the model is available locally before use.
 - **Rich Organizational Tools:**
     - **Frames:** Group related nodes into logical clusters with customizable titles and colors.
     - **Notes:** Add persistent, editable sticky notes to the canvas for annotations and reminders.
@@ -66,26 +67,30 @@ Graphite solves this by treating every conversation as an interactive mind-map o
   </tr>
     <tr>
     <td align="center"><b>Chat Library for Session Management</b></td>
-    <td align="center"><b>Detailed Node Interaction</b></td>
+    <td align="center"><b>Flexible Model Selection</b></td>
   </tr>
   <tr>
     <td><img src="https://github.com/user-attachments/assets/83e79a1c-879e-4f8f-9a61-10b4f2572127" alt="Chat Library"></td>
-    <td><img src="https://github.com/user-attachments/assets/7ee493d8-95db-40b0-bffd-2183fc27e8ea" alt="Node Interaction"></td>
+    <td><img src="https://github.com/user-attachments/assets/0d08451c-1336-4fc4-8589-f960492b3544" alt="Screenshot 2025-10-23 140010" /></td>
   </tr>
 </table>
 
 ## Technical Architecture
 
-Graphite is designed with a clear separation of concerns, loosely following a Model-View-Controller (MVC) pattern.
+Graphite has recently undergone a major architectural refactor to improve modularity and maintainability. The codebase is now split into logical components with a clear separation of concerns.
 
--   **View Layer (UI):** Built with PyQt5. The `ChatWindow` serves as the main application container. The core visual component is the `ChatView` (`QGraphicsView`), which displays the `ChatScene` (`QGraphicsScene`). All interactive elements—`ChatNode`, `Frame`, `Note`, `ConnectionItem`, `ChartItem`, and `NavigationPin`—are custom subclasses of `QGraphicsItem`, allowing for highly tailored rendering and event handling.
--   **Controller Layer (Logic):** The `ChatWindow` class acts as the central controller, managing user input, orchestrating UI updates, and handling communication with the AI backend. Long-running AI operations are delegated to `QThread` workers (`ChatWorkerThread`, `ChartWorkerThread`, etc.) to ensure the UI remains responsive.
--   **Model Layer (Data):** Data persistence is handled by the `ChatSessionManager` and the `ChatDatabase`. The `ChatDatabase` uses SQLite to store all session data. The `ChatSessionManager` is responsible for serializing the entire state of the `ChatScene` into a JSON format for storage and deserializing it to load sessions.
+-   **`graphite_app.py`**: The main application entry point. It contains the primary `ChatWindow` class and is responsible for initializing and launching the application.
+
+-   **`graphite_ui.py`**: Consolidates all classes related to the User Interface layer. This includes all Qt widgets, dialogs, custom graphics items (`ChatNode`, `ConnectionItem`, `Frame`), and view components (`ChatView`, `ChatScene`).
+
+-   **`graphite_core.py`**: Manages the application's core logic and data persistence. It contains the `ChatDatabase` class for all SQLite operations and the `ChatSessionManager` for handling the serialization/deserialization of chat sessions.
+
+-   **`graphite_agents.py`**: Isolates all logic related to AI model interaction. This module contains the base `ChatAgent`, specialized tool agents (`KeyTakeawayAgent`, `ChartDataAgent`), and their corresponding `QThread` workers for asynchronous processing.
 
 ## Technology Stack
 
 -   **Language:** Python 3.8+
--   **UI Framework:** PyQt5
+-   **UI Framework:** PySide6
 -   **Local LLM Interface:** Ollama
 -   **Charting Library:** Matplotlib
 -   **Database:** SQLite
@@ -102,13 +107,13 @@ Follow these steps to get Graphite running on your local machine.
 
 ### 2. Install an LLM Model
 
-Before running Graphite, you need to pull a model for Ollama to use. Open your terminal and run:
+Before running Graphite, you need to pull a model for Ollama to use. The default is `qwen2.5:7b-instruct`. Open your terminal and run:
 
 ```bash
-ollama pull qwen2.5:7b
+ollama pull qwen2.5:7b-instruct
 ```
 
-You can use other models like qwen3, Gemma, or Phi, but this one is recommended for a good balance of performance and capability. Ensure the Ollama application is running in the background.
+You can use the in-app Model Selection dialog to choose and validate other models. Ensure the Ollama application is running in the background.
 
 ### 3. Clone and Install Dependencies
 
@@ -133,16 +138,15 @@ You can use other models like qwen3, Gemma, or Phi, but this one is recommended 
     ```bash
     pip install -r requirements.txt
     ```
-    *(If a `requirements.txt` is not available, install manually: `pip install PyQt5 ollama matplotlib qtawesome`)*
+    *(If a `requirements.txt` is not available, install manually: `pip install PySide6 ollama matplotlib qtawesome`)*
 
 ### 4. Run the Application
 
 Once the setup is complete, launch the application by running:
 
 ```bash
-python main.py
+python graphite_app.py
 ```
-*(Note: The main executable script might have a different name, such as `app.py` or similar.)*
 
 ## Usage
 
@@ -156,6 +160,8 @@ python main.py
     -   `Ctrl + F`: Create a Frame around selected nodes.
     -   `Ctrl + N`: Create a new Note at the cursor's position.
     -   `Delete`: Delete any selected item (node, frame, note, etc.).
+    -   `Ctrl + S`: Save the current chat session.
+    -   `Ctrl + L`: Open the Chat Library.
 
 ---
 Known issues: The graph generation is very brittle and not very stable. Note: Larger models do handle chart data far better than smaller models, however the system requirements to use the larger models is significantly larger. 
