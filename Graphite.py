@@ -1,4 +1,6 @@
-﻿from datetime import datetime
+# this is now legacy code, the main file 'Graphite_app' is the source project now (vs project as well)
+
+from datetime import datetime
 from pathlib import Path
 import json
 import sys
@@ -7116,4 +7118,5 @@ def main():
     sys.exit(app.exec_())
 
 if __name__ == "__main__":
+
     main()
