@@ -7,6 +7,15 @@ All notable changes to this project will be documented in this file.
 ---
 
 
+## [Beta v.0.1.2] - 2025-10-23
+
+### Fixed
+
+*   **Fixed a critical UI bug where deleting a Navigation Pin from the side panel would not remove its corresponding graphical icon from the main scene view.**
+    *   This resulted in "ghost" pins on the canvas that were no longer interactive or tracked by the application, leading to a confusing user experience and inconsistent state.
+    *   The `PinOverlay.remove_pin` method has been corrected to properly communicate with the `ChatScene`, ensuring the pin's `QGraphicsItem` is fully removed from the scene graph and its internal tracking lists.
+    *   This issue was a regression introduced during the recent major architectural refactoring. I am continuing to identify and resolve other issues that may have arisen from this significant codebase transition.
+
 ## [Beta v.0.1.2] - 2025-05-23
 
 ### Architectural Refactor
@@ -35,7 +44,7 @@ The new project structure is as follows:
 
 ---
 
-When to expect updated code: 
+When to expect updated code:
 
 ```
 10/24/2025
