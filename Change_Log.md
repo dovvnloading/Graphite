@@ -1,11 +1,9 @@
-
 # Changelog
 
 All notable changes to this project will be documented in this file.
 
 ---
 ---
-
 
 ## [Beta v.0.1.2] - 2025-10-23
 
@@ -15,6 +13,12 @@ All notable changes to this project will be documented in this file.
     *   This resulted in "ghost" pins on the canvas that were no longer interactive or tracked by the application, leading to a confusing user experience and inconsistent state.
     *   The `PinOverlay.remove_pin` method has been corrected to properly communicate with the `ChatScene`, ensuring the pin's `QGraphicsItem` is fully removed from the scene graph and its internal tracking lists.
     *   This issue was a regression introduced during the recent major architectural refactoring. I am continuing to identify and resolve other issues that may have arisen from this significant codebase transition.
+
+*   **Fixed a critical, intermittent crash-on-exit bug that was causing an "Invalid window handle" error.**
+    *   A thorough investigation traced the root cause to several asynchronous operations (threads, timers, and animations) that were not being properly terminated during the application shutdown sequence. These operations would attempt to send signals to GUI elements that had already been destroyed, leading to a fatal error.
+    *   **Worker Thread Management:** Implemented robust shutdown logic in `ChatWindow`'s `closeEvent` to gracefully terminate all active `QThread` workers (e.g., `ChatWorkerThread`, `KeyTakeawayWorkerThread`). This ensures background AI processing is halted before the main window is destroyed.
+    *   **Child Dialog Thread Safety:** Added a `closeEvent` handler to the `ModelSelectionDialog` to disconnect signals from its `ModelPullWorkerThread`, preventing errors if the application is closed while a model is downloading.
+    *   **Unmanaged Animation Loop:** The definitive source of the most persistent crashes was identified in the `Frame` class. Its infinitely looping `QVariantAnimation` for the "unlocked" state was not being stopped upon object destruction. A destructor (`__del__`) has been added to the `Frame` class to explicitly stop the animation, guaranteeing a clean shutdown and fully resolving the issue.
 
 ## [Beta v.0.1.2] - 2025-05-23
 
@@ -41,11 +45,3 @@ The new project structure is as follows:
 *   **Fixed an issue where the application icon would not display in the title bar.**
     *   The primary cause was the omission of the `self.parent.setWindowIcon()` method call within the `CustomTitleBar` class during the refactoring process. This critical line has been reinstated, ensuring the main window's icon is set correctly.
     *   This also resolves the persistent `QPixmap::scaled: Pixmap is a null pixmap` warning that appeared in the console, as the icon resource is now properly loaded and assigned.
-
----
-
-When to expect updated code:
-
-```
-10/24/2025
-```
