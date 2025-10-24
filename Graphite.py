@@ -2,7 +2,8 @@
 from pathlib import Path
 import json
 import sys
-import ollama
+import os
+import api_provider
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -260,7 +261,7 @@ class TitleGenerator:
                 {'role': 'system', 'content': self.system_prompt},
                 {'role': 'user', 'content': f"Create a 2-3 word title for this message: {message}"}
             ]
-            response = ollama.chat(model='qwen2.5:3b', messages=messages)
+            response = api_provider.chat(model='qwen2.5:3b', messages=messages)
             title = response['message']['content'].strip()
             # Clean up title if needed
             title = ' '.join(title.split()[:3])  # Ensure max 3 words
@@ -1379,7 +1380,7 @@ class ChatWorker:
                 *self.conversation_history,
                 {'role': 'user', 'content': user_message}
             ]
-            response = ollama.chat(model='qwen2.5:7b', messages=messages)
+            response = api_provider.chat(model='qwen2.5:7b', messages=messages)
             ai_message = response['message']['content']
             return ai_message
         except Exception as e:
@@ -1608,9 +1609,9 @@ Remember: Write as if explaining to a curious 5-year-old. No technical terms, no
             {'role': 'system', 'content': self.system_prompt},
             {'role': 'user', 'content': f"Explain this in simple terms: {text}"}
         ]
-        response = ollama.chat(model='qwen2.5:7b', messages=messages)
+        response = api_provider.chat(model='qwen2.5:7b', messages=messages)
         raw_response = response['message']['content']
-        
+
         # Clean and format the response
         formatted_response = self.clean_text(raw_response)
         return formatted_response
@@ -1689,9 +1690,9 @@ No markdown formatting, no special characters."""
             {'role': 'system', 'content': self.system_prompt},
             {'role': 'user', 'content': f"Generate key takeaways from this text: {text}"}
         ]
-        response = ollama.chat(model='qwen2.5:7b', messages=messages)
+        response = api_provider.chat(model='qwen2.5:7b', messages=messages)
         raw_response = response['message']['content']
-        
+
         # Clean and format the response
         formatted_response = self.clean_text(raw_response)
         return formatted_response
@@ -1928,8 +1929,8 @@ IMPORTANT:
                 {'role': 'system', 'content': self.system_prompt},
                 {'role': 'user', 'content': f"Create a {chart_type} chart from this text. Only return the JSON data: {text}"}
             ]
-            
-            response = ollama.chat(model='qwen2.5-coder:14b', messages=messages)
+
+            response = api_provider.chat(model='qwen2.5-coder:14b', messages=messages)
             cleaned_response = self.clean_response(response['message']['content'])
             
             # Parse JSON
@@ -6780,6 +6781,30 @@ class ChatWindow(QMainWindow):
             }
         """)
 
+        # Mode Toggle: Ollama vs API
+        mode_label = QLabel("Mode:")
+        mode_label.setStyleSheet("color: #ffffff; padding: 0 8px; font-size: 12px;")
+        toolbar.addWidget(mode_label)
+
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItem("Ollama (Local)", False)
+        self.mode_combo.addItem("API Endpoint", True)
+        self.mode_combo.setMinimumWidth(150)
+        self.mode_combo.currentIndexChanged.connect(self.on_mode_changed)
+        toolbar.addWidget(self.mode_combo)
+
+        # API Settings button (configure models per task)
+        self.api_settings_btn = QToolButton()
+        self.api_settings_btn.setIcon(qta.icon('fa5s.cog', color='#3498db'))
+        self.api_settings_btn.setText("API Settings")
+        self.api_settings_btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.api_settings_btn.setObjectName("actionButton")
+        self.api_settings_btn.setVisible(True)
+        self.api_settings_btn.clicked.connect(self.show_api_settings)
+        toolbar.addWidget(self.api_settings_btn)
+
+        toolbar.addSeparator()
+
         # Organize Button
         organize_btn = QToolButton()
         organize_btn.setIcon(qta.icon('fa5s.project-diagram', color='#3498db'))
@@ -6849,7 +6874,202 @@ class ChatWindow(QMainWindow):
         help_dialog.move(center.x() - help_dialog.width() // 2,
                         center.y() - help_dialog.height() // 2)
         help_dialog.show()
-    
+
+    def on_mode_changed(self, index):
+        """Handle mode toggle between Ollama and API"""
+        use_api = self.mode_combo.itemData(index)
+        api_provider.set_mode(use_api)
+
+        # Show/hide API settings button
+        self.api_settings_btn.setVisible(use_api)
+
+    def show_api_settings(self):
+        """Show API configuration dialog with per-task model selection"""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("API Endpoint Configuration")
+        dialog.setMinimumWidth(700)
+        dialog.setStyleSheet(StyleSheet.DARK_THEME)
+
+        layout = QVBoxLayout(dialog)
+
+        # Info
+        info = QLabel(
+            "Configure your OpenAI-compatible API endpoint.\n"
+            "Works with: OpenAI, LiteLLM proxy, Anthropic, OpenRouter, etc.\n\n"
+            "Choose different models for different tasks (like Ollama does)."
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet("color: #d4d4d4; margin-bottom: 15px;")
+        layout.addWidget(info)
+
+        # Base URL
+        base_url_label = QLabel("Base URL:")
+        base_url_label.setStyleSheet("color: #ffffff; font-weight: bold;")
+        layout.addWidget(base_url_label)
+
+        base_url_input = QLineEdit()
+        base_url_input.setPlaceholderText("https://api.openai.com/v1")
+        base_url_input.setText(os.getenv('GRAPHITE_API_BASE', 'https://api.openai.com/v1'))
+        layout.addWidget(base_url_input)
+
+        # API Key
+        api_key_label = QLabel("API Key:")
+        api_key_label.setStyleSheet("color: #ffffff; font-weight: bold; margin-top: 10px;")
+        layout.addWidget(api_key_label)
+
+        api_key_input = QLineEdit()
+        api_key_input.setEchoMode(QLineEdit.Password)
+        api_key_input.setPlaceholderText("Enter your API key...")
+        api_key_input.setText(os.getenv('GRAPHITE_API_KEY', ''))
+        layout.addWidget(api_key_input)
+
+        # Load models button
+        load_btn = QPushButton("Load Models from Endpoint")
+        load_btn.clicked.connect(lambda: self.load_models_to_dialog(
+            base_url_input.text().strip(),
+            api_key_input.text().strip(),
+            model_combos
+        ))
+        layout.addWidget(load_btn)
+
+        # Model selection per task
+        models_label = QLabel("Model Selection (per task):")
+        models_label.setStyleSheet("color: #ffffff; font-weight: bold; margin-top: 15px;")
+        layout.addWidget(models_label)
+
+        model_combos = {}
+
+        # Title generation model
+        title_label = QLabel("Title Generation (fast, cheap model):")
+        title_label.setStyleSheet("color: #d4d4d4; margin-top: 8px;")
+        layout.addWidget(title_label)
+
+        title_combo = QComboBox()
+        title_combo.setPlaceholderText("Select model...")
+        model_combos['qwen2.5:3b'] = title_combo
+        layout.addWidget(title_combo)
+
+        # Chat model
+        chat_label = QLabel("Chat, Explain, Takeaways (main model):")
+        chat_label.setStyleSheet("color: #d4d4d4; margin-top: 8px;")
+        layout.addWidget(chat_label)
+
+        chat_combo = QComboBox()
+        chat_combo.setPlaceholderText("Select model...")
+        model_combos['qwen2.5:7b'] = chat_combo
+        layout.addWidget(chat_combo)
+
+        # Chart generation model
+        chart_label = QLabel("Chart Generation (code-capable model):")
+        chart_label.setStyleSheet("color: #d4d4d4; margin-top: 8px;")
+        layout.addWidget(chart_label)
+
+        chart_combo = QComboBox()
+        chart_combo.setPlaceholderText("Select model...")
+        model_combos['qwen2.5-coder:14b'] = chart_combo
+        layout.addWidget(chart_combo)
+
+        # Buttons
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+
+        save_btn = QPushButton("Save Configuration")
+        save_btn.clicked.connect(lambda: self.save_api_settings(
+            base_url_input.text().strip(),
+            api_key_input.text().strip(),
+            model_combos,
+            dialog
+        ))
+        button_layout.addWidget(save_btn)
+
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(dialog.reject)
+        button_layout.addWidget(cancel_btn)
+
+        layout.addLayout(button_layout)
+
+        dialog.exec_()
+
+    def load_models_to_dialog(self, base_url, api_key, model_combos):
+        """Load available models from API and populate dropdowns"""
+        if not base_url or not api_key:
+            QMessageBox.warning(self, "Missing Information", "Please enter both Base URL and API Key")
+            return
+
+        try:
+            # Initialize API client
+            api_provider.initialize_api(api_key, base_url)
+
+            # Fetch models
+            models = api_provider.get_available_models()
+
+            # Populate all model dropdowns
+            for combo in model_combos.values():
+                combo.clear()
+                for model in models:
+                    combo.addItem(model)
+
+            QMessageBox.information(
+                self,
+                "Models Loaded",
+                f"Successfully loaded {len(models)} models!\n\n"
+                f"Now select a model for each task."
+            )
+
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Failed to Load Models",
+                f"Could not fetch models from API:\n\n{str(e)}"
+            )
+
+    def save_api_settings(self, base_url, api_key, model_combos, dialog):
+        """Save API settings and model mappings"""
+        if not base_url or not api_key:
+            QMessageBox.warning(self, "Missing Information", "Please enter both Base URL and API Key")
+            return
+
+        # Check all models are selected
+        for task_key, combo in model_combos.items():
+            if not combo.currentText():
+                QMessageBox.warning(
+                    self,
+                    "Missing Model Selection",
+                    f"Please select a model for all tasks.\n\nMissing: {task_key}"
+                )
+                return
+
+        try:
+            # Save to environment
+            os.environ['GRAPHITE_API_BASE'] = base_url
+            os.environ['GRAPHITE_API_KEY'] = api_key
+
+            # Initialize API client
+            api_provider.initialize_api(api_key, base_url)
+
+            # Save model mappings
+            for task_key, combo in model_combos.items():
+                api_provider.set_task_model(task_key, combo.currentText())
+
+            task_models = api_provider.get_task_models()
+
+            QMessageBox.information(
+                self,
+                "Configuration Saved",
+                f"API configured successfully!\n\n"
+                f"Title Model: {task_models['qwen2.5:3b']}\n"
+                f"Chat Model: {task_models['qwen2.5:7b']}\n"
+                f"Chart Model: {task_models['qwen2.5-coder:14b']}"
+            )
+            dialog.accept()
+
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Configuration Failed",
+                f"Failed to save configuration:\n\n{str(e)}"
+            )
+
     def setCurrentNode(self, node):
         self.current_node = node
         self.message_input.setPlaceholderText(f"Responding to: {node.text[:30]}...")

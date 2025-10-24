@@ -1,4 +1,5 @@
 PyQt5
-ollama
 matplotlib
 qtawesome
+ollama
+openai
