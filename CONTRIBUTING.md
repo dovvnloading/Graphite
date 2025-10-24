@@ -10,6 +10,7 @@ This document provides guidelines for contributing to the project. Please read i
   - [Reporting Bugs](#reporting-bugs)
   - [Suggesting Enhancements](#suggesting-enhancements)
   - [Pull Requests](#pull-requests)
+- [Understanding the Architecture](#understanding-the-architecture)
 - [Development Setup](#development-setup)
 - [Style Guides](#style-guides)
   - [Git Commit Messages](#git-commit-messages)
@@ -35,7 +36,7 @@ If you encounter a bug, please open an issue on GitHub. When filing a bug report
 
 ### Suggesting Enhancements
 
-If you have an idea for a new feature or an improvement to an existing one, please open an issue on GitHub to discuss it. This allows for a discussion with the community and maintainers before you put in the effort to implement it.
+If you have an idea for a new feature or an improvement to an existing one, we'd love to hear it! To ensure your effort is not wasted, please **open an issue on GitHub to discuss the idea first**. This allows for a discussion with the maintainers and community before you begin implementation.
 
 When suggesting an enhancement, please include:
 
@@ -45,14 +46,32 @@ When suggesting an enhancement, please include:
 
 ### Pull Requests
 
-If you would like to contribute code to fix a bug or implement a new feature, please follow these steps:
+Ready to contribute code? Please follow these steps to ensure your contribution can be smoothly integrated.
+
+**Important: Before You Start Coding**
+
+1.  **Sync with the `main` branch.** The project is under active development. To avoid building on an outdated version, please pull the latest changes from the official `main` branch before creating your own branch.
+2.  **Open an Issue First.** For any new feature or significant change, please open an issue to discuss your plan. This helps prevent duplicated effort and ensures your proposed changes align with the project's direction.
+
+**The Pull Request Process**
 
 1.  **Fork the repository** on GitHub.
-2.  **Create a new branch** for your feature or bug fix (`git checkout -b feature/your-feature-name`).
-3.  **Make your changes** and commit them with clear, descriptive messages.
-4.  **Push your changes** to your forked repository.
-5.  **Create a pull request** to the `main` branch of the official Graphite repository.
-6.  In your pull request, **provide a clear description of the changes** you have made and reference any related issues.
+2.  **Create a new branch** from the up-to-date `main` branch (`git checkout -b feature/your-feature-name`).
+3.  **Make your changes** in your branch. Please see the architecture guide below to understand where your changes should go.
+4.  **Commit your changes** with clear, descriptive messages.
+5.  **Push your branch** to your forked repository.
+6.  **Create a pull request** to the `main` branch of the official Graphite repository.
+7.  In your pull request, **provide a clear description of the changes** you have made and reference the issue number it resolves (e.g., "Closes #42").
+
+## Understanding the Architecture
+
+Graphite has been refactored from a single file into a modular structure. Understanding this structure is key to contributing effectively. All development should be done within these files, not by creating a new monolithic script.
+
+*   `graphite_app.py`: **Main Application Entry Point.** Contains the `ChatWindow` class, toolbar setup, and event handling. This is the primary file for launching the app and managing the main UI.
+*   `graphite_ui.py`: **The UI Layer.** Contains all custom Qt widgets, dialogs, and `QGraphicsItem` subclasses (`ChatNode`, `ConnectionItem`, `Frame`, `Note`, `ChatView`, `ChatScene`, etc.). All visual components belong here.
+*   `graphite_core.py`: **Core Logic and Data.** Manages data persistence (`ChatDatabase`) and session management (`ChatSessionManager`), including serialization/deserialization of scene elements.
+*   `graphite_agents.py`: **AI and Backend Logic.** Contains all classes related to LLM interaction, including the `ChatAgent`, specialized tool agents, and the `QThread` workers for running AI tasks in the background.
+*   `graphite_config.py`: **Global Configuration.** A simple file for storing global settings, such as default model names.
 
 ## Development Setup
 
@@ -63,9 +82,9 @@ To get started with developing on Graphite, follow these steps:
     *   Ollama installed and running.
 
 2.  **Install an LLM Model**:
-    Before running Graphite, you need a model for Ollama. Open your terminal and run:
+    Before running Graphite, you need a model for Ollama. The current default is `qwen2.5:7b-instruct`. Open your terminal and run:
     ```bash
-    ollama pull qwen2.5:7b
+    ollama pull qwen2.5:7b-instruct
     ```
     Ensure the Ollama application is running in the background.
 
@@ -91,8 +110,9 @@ To get started with developing on Graphite, follow these steps:
         ```
 
 4.  **Run the Application**:
+    The main entry point is now `graphite_app.py`.
     ```bash
-    python Graphite.py
+    python graphite_app.py
     ```
 
 ## Style Guides
