@@ -11,7 +11,7 @@ This release introduces support for any OpenAI-compatible API endpoint as an alt
 #### Added
 
 *   **Added support for OpenAI-Compatible API Endpoints.**
-    *   **Feature:** Users can now switch from using a local Ollama instance to any remote API service that is compatible with the OpenAI API specification (e.g., OpenAI, Groq, OpenRouter, or self-hosted solutions like LiteLLM).
+    *   **Feature:** Users can now switch from using a local Ollama instance to any remote API service that is compatible with the OpenAI API specification (e.g., OpenAI, Groq, OpenRouter, or self-hosted solutions like LiteLLM). (Credits for first conceptual buildout/iteration of implimentations - https://github.com/1818TusculumSt)
     *   **Implementation:** A new `api_provider.py` module was created to act as a router, abstracting all LLM calls and directing them to either Ollama or the configured API endpoint based on the user's selection. All agent classes (`ChatAgent`, `KeyTakeawayAgent`, etc.) were refactored to use this new provider instead of calling `ollama` directly.
 *   **Added Per-Task Model Configuration for API Mode.**
     *   **Feature:** When using an API provider, users can configure different models for different tasks (Title Generation, Chat/Analysis, and Chart Data Extraction) to optimize for cost, speed, and capability.
