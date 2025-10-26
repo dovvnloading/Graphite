@@ -1,17 +1,18 @@
 import sys
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QToolBar,
-    QToolButton, QLineEdit, QPushButton, QMessageBox, QSizePolicy
+    QToolButton, QLineEdit, QPushButton, QMessageBox, QSizePolicy, QLabel, QComboBox
 )
 from PySide6.QtCore import Qt, QSize, QPointF
 from PySide6.QtGui import QKeySequence, QGuiApplication, QCursor, QShortcut
 import qtawesome as qta
 import json
+import os
 
 # Imports from new modules
 from graphite_ui import (
     StyleSheet, CustomTitleBar, PinOverlay, ChatView, LoadingOverlay,
-    ChatLibraryDialog, HelpDialog, Note, ModelSelectionDialog
+    ChatLibraryDialog, HelpDialog, Note, ModelSelectionDialog, APISettingsDialog
 )
 from graphite_core import ChatSessionManager
 from graphite_agents import (
@@ -19,6 +20,7 @@ from graphite_agents import (
     ChatWorkerThread, KeyTakeawayWorkerThread, ExplainerWorkerThread, ChartWorkerThread
 )
 import graphite_config as config
+import api_provider
 
 class ChatWindow(QMainWindow):
     def __init__(self):
@@ -190,12 +192,6 @@ class ChatWindow(QMainWindow):
                 100
             )
         
-        # Update pin overlay position
-        if hasattr(self, 'pin_overlay'):
-            self.pin_overlay.move(10, 
-                                self.title_bar.height() + 
-                                self.toolbar.height() + 10)
-        
     def show_library(self):
         """Show the chat library dialog"""
         # Create new dialog and store reference
@@ -312,13 +308,26 @@ class ChatWindow(QMainWindow):
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         toolbar.addWidget(spacer)
 
-        # Model Selection Button
-        model_btn = QToolButton()
-        model_btn.setText("Model Selection")
-        model_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        model_btn.setObjectName("helpButton") # Using helpButton style for now
-        model_btn.clicked.connect(self.show_model_selection_dialog)
-        toolbar.addWidget(model_btn)
+        # Mode Toggle: Ollama vs API
+        mode_label = QLabel("Mode:")
+        mode_label.setStyleSheet("color: #ffffff; padding: 0 8px; font-size: 12px;")
+        toolbar.addWidget(mode_label)
+
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItem("Ollama (Local)", False)
+        self.mode_combo.addItem("API Endpoint", True)
+        self.mode_combo.setMinimumWidth(150)
+        self.mode_combo.currentIndexChanged.connect(self.on_mode_changed)
+        toolbar.addWidget(self.mode_combo)
+
+        # Unified Settings Button
+        settings_btn = QToolButton()
+        settings_btn.setIcon(qta.icon('fa5s.cog', color='#3498db'))
+        settings_btn.setText("Settings")
+        settings_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        settings_btn.setObjectName("actionButton")
+        settings_btn.clicked.connect(self.show_settings)
+        toolbar.addWidget(settings_btn)
 
         # Help Button
         help_btn = QToolButton()
@@ -329,6 +338,10 @@ class ChatWindow(QMainWindow):
         help_btn.clicked.connect(self.show_help)
         toolbar.addWidget(help_btn)
 
+        # Set initial visibility based on mode
+        self.on_mode_changed(self.mode_combo.currentIndex())
+
+
     def show_help(self):
         """Show the help dialog"""
         help_dialog = HelpDialog(self)
@@ -338,14 +351,24 @@ class ChatWindow(QMainWindow):
                         center.y() - help_dialog.height() // 2)
         help_dialog.show()
 
-    def show_model_selection_dialog(self):
-        """Show the model selection dialog."""
-        dialog = ModelSelectionDialog(self)
+    def show_settings(self):
+        """Show the appropriate settings dialog based on the current mode."""
+        use_api = self.mode_combo.currentData()
+        if use_api:
+            dialog = APISettingsDialog(self)
+        else:
+            dialog = ModelSelectionDialog(self)
+        
         center = self.geometry().center()
         dialog.move(center.x() - dialog.width() // 2,
                     center.y() - dialog.height() // 2)
-        dialog.show()
+        dialog.exec()
     
+    def on_mode_changed(self, index):
+        """Handle mode toggle between Ollama and API"""
+        use_api = self.mode_combo.itemData(index)
+        api_provider.set_mode(use_api)
+
     def setCurrentNode(self, node):
         self.current_node = node
         self.message_input.setPlaceholderText(f"Responding to: {node.text[:30]}...")
