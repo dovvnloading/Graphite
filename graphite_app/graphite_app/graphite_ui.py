@@ -11,10 +11,12 @@ from matplotlib.figure import Figure
 from PySide6.QtWidgets import *
 from PySide6.QtCore import *
 from PySide6.QtGui import *
+import os
 
 # Import the new worker thread
 from graphite_agents import ModelPullWorkerThread
 import graphite_config as config
+import api_provider
 
 FRAME_COLORS = {
     # Full frame colors
@@ -903,282 +905,290 @@ class TextBlock:
         self.height = 0
         self.layout = None
 
-class ChatNodeContextMenu(QMenu):
-    def __init__(self, node, parent=None):
+#
+# --- REORDERED GRAPHICS ITEM CLASSES ---
+# The following classes have been reordered to solve import-time NameErrors.
+#
+
+class ColorPickerDialog(QDialog):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.node = node
-        self.takeaway_thread = None
+        self.setWindowFlags(
+            Qt.WindowType.Window |
+            Qt.WindowType.FramelessWindowHint |
+            Qt.WindowType.WindowStaysOnTopHint |
+            Qt.WindowType.Popup
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        self.setModal(False)
+        self.resize(200, 180)
+        
+        self.container = QWidget(self)
+        dialog_layout = QVBoxLayout(self)
+        dialog_layout.setContentsMargins(0, 0, 0, 0)
+        dialog_layout.setSpacing(0)
+        dialog_layout.addWidget(self.container)
+        
+        main_layout = QVBoxLayout(self.container)
+        main_layout.setSpacing(15)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+
+        full_label = QLabel("Frame Colors")
+        full_label.setStyleSheet("color: #ffffff; font-size: 10px;")
+        main_layout.addWidget(full_label)
+        
+        full_color_layout = QGridLayout()
+        full_color_layout.setSpacing(8)
+        
+        col = 0
+        full_colors = [c for c in FRAME_COLORS.items() if c[1]["type"] == "full"]
+        for color_name, color_data in full_colors:
+            btn = QPushButton()
+            btn.setFixedSize(40, 40)
+            btn.setToolTip(color_name)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {color_data["color"]};
+                    border: 2px solid #555555;
+                    border-radius: 20px;
+                }}
+                QPushButton:hover {{
+                    border: 2px solid #ffffff;
+                }}
+            """)
+            
+            btn.clicked.connect(
+                lambda checked, c=color_data: self.color_selected(c["color"], "full")
+            )
+            full_color_layout.addWidget(btn, 0, col)
+            col += 1
+            
+        main_layout.addLayout(full_color_layout)
+        
+        header_label = QLabel("Header Colors Only")
+        header_label.setStyleSheet("color: #ffffff; font-size: 10px;")
+        main_layout.addWidget(header_label)
+        
+        header_color_layout = QGridLayout()
+        header_color_layout.setSpacing(8)
+        
+        col = 0
+        header_colors = [c for c in FRAME_COLORS.items() if c[1]["type"] == "header"]
+        for color_name, color_data in header_colors:
+            btn = QPushButton()
+            btn.setFixedSize(40, 40)
+            btn.setToolTip(color_name)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            
+            gradient = QLinearGradient(0, 0, 0, 40)
+            gradient.setColorAt(0, QColor(color_data["color"]))
+            gradient.setColorAt(1, QColor("#2d2d2d"))
+            
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 {color_data["color"]},
+                        stop:0.3 {color_data["color"]},
+                        stop:0.31 #2d2d2d,
+                        stop:1 #2d2d2d);
+                    border: 2px solid #555555;
+                    border-radius: 20px;
+                }}
+                QPushButton:hover {{
+                    border: 2px solid #ffffff;
+                }}
+            """)
+            
+            btn.clicked.connect(
+                lambda checked, c=color_data: self.color_selected(c["color"], "header")
+            )
+            header_color_layout.addWidget(btn, 0, col)
+            col += 1
+            
+        main_layout.addLayout(header_color_layout)
+        
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(20)
+        shadow.setColor(QColor(0, 0, 0, 180))
+        shadow.setOffset(0, 0)
+        self.container.setGraphicsEffect(shadow)
         
         self.setStyleSheet("""
-            QMenu {
-                background-color: #2d2d2d;
-                border: 1px solid #3f3f3f;
-                border-radius: 4px;
-                padding: 4px;
+            QDialog {
+                background: transparent;
             }
-            QMenu::item {
-                background-color: transparent;
-                padding: 8px 20px;
-                border-radius: 4px;
-                color: white;
-            }
-            QMenu::item:selected {
-                background-color: #3498db;
-            }
-            QMenu::separator {
-                height: 1px;
-                background-color: #3f3f3f;
-                margin: 4px 0px;
+            QWidget#container {
+                background-color: #1e1e1e;
+                border-radius: 8px;
             }
         """)
         
-        copy_action = QAction("Copy Text", self)
-        copy_action.setIcon(qta.icon('fa5s.copy', color='white'))
-        copy_action.triggered.connect(self.copy_text)
-        self.addAction(copy_action)
+        self.selected_color = None
+        self.selected_type = None
         
-        takeaway_action = QAction("Generate Key Takeaway", self)
-        takeaway_action.setIcon(qta.icon('fa5s.lightbulb', color='white'))
-        takeaway_action.triggered.connect(self.generate_takeaway)
-        self.addAction(takeaway_action)
+    def color_selected(self, color, color_type):
+        self.selected_color = color
+        self.selected_type = color_type
+        self.accept()
         
-        self.addSeparator()
-        
-        explainer_action = QAction("Generate Explainer Note", self)
-        explainer_action.setIcon(qta.icon('fa5s.question', color='white'))
-        explainer_action.triggered.connect(self.generate_explainer)
-        self.addAction(explainer_action)
-        
-        chart_menu = QMenu("Generate Chart", self)
-        chart_menu.setIcon(qta.icon('fa5s.chart-bar', color='white'))
-        chart_menu.setStyleSheet(self.styleSheet())
-        
-        chart_types = [
-            ("Bar Chart", "bar", 'fa5s.chart-bar'),
-            ("Line Graph", "line", 'fa5s.chart-line'),
-            ("Histogram", "histogram", 'fa5s.chart-area'),
-            ("Pie Chart", "pie", 'fa5s.chart-pie'),
-            ("Sankey Diagram", "sankey", 'fa5s.project-diagram')
-        ]
-        
-        for title, chart_type, icon in chart_types:
-            action = QAction(title, chart_menu)
-            action.setIcon(qta.icon(icon, color='white'))
-            action.triggered.connect(lambda checked, t=chart_type: self.generate_chart(t))
-            chart_menu.addAction(action)
-            
-        self.addMenu(chart_menu)
-        
-        self.addSeparator()
-        
-        delete_action = QAction("Delete Node", self)
-        delete_action.setIcon(qta.icon('fa5s.trash', color='white'))
-        delete_action.triggered.connect(self.delete_node)
-        self.addAction(delete_action)
-        
-        if not node.is_user:
-            self.addSeparator()
-            
-            regenerate_action = QAction("Regenerate Response", self)
-            regenerate_action.setIcon(qta.icon('fa5s.sync', color='white'))
-            regenerate_action.triggered.connect(self.regenerate_response)
-            self.addAction(regenerate_action)
-            
-        self.destroyed.connect(self.cleanup_thread)
+    def get_selected_color(self):
+        return self.selected_color, self.selected_type
     
-    def copy_text(self):
-        clipboard = QApplication.clipboard()
-        clipboard.setText(self.node.text)
-    
-    def delete_node(self):
-        try:
-            scene = self.node.scene()
-            if not scene:
+    def focusOutEvent(self, event):
+        self.close()
+        super().focusOutEvent(event)
+
+class PinEditDialog(QDialog):
+    def __init__(self, title="", note="", parent=None):
+        super().__init__(parent)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setModal(True)
+        self.resize(300, 200)
+        
+        self.container = QWidget(self)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.container)
+        
+        container_layout = QVBoxLayout(self.container)
+        container_layout.setSpacing(10)
+        container_layout.setContentsMargins(20, 20, 20, 20)
+        
+        title_label = QLabel("Pin Title")
+        container_layout.addWidget(title_label)
+        
+        self.title_input = QLineEdit(title)
+        self.title_input.setPlaceholderText("Enter pin title...")
+        container_layout.addWidget(self.title_input)
+        
+        note_label = QLabel("Note")
+        container_layout.addWidget(note_label)
+        
+        self.note_input = QTextEdit()
+        self.note_input.setPlaceholderText("Add a note...")
+        self.note_input.setText(note)
+        self.note_input.setMaximumHeight(80)
+        container_layout.addWidget(self.note_input)
+        
+        button_layout = QHBoxLayout()
+        
+        save_btn = QPushButton("Save")
+        save_btn.clicked.connect(self.accept)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        
+        button_layout.addWidget(save_btn)
+        button_layout.addWidget(cancel_btn)
+        container_layout.addLayout(button_layout)
+        
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(20)
+        shadow.setColor(QColor(0, 0, 0, 180))
+        shadow.setOffset(0, 0)
+        self.container.setGraphicsEffect(shadow)
+        
+        self.container.setStyleSheet("""
+            QWidget {
+                background-color: #2d2d2d;
+                border-radius: 10px;
+            }
+            QLabel {
+                color: white;
+                font-size: 12px;
+            }
+            QLineEdit, QTextEdit {
+                background-color: #3f3f3f;
+                border: none;
+                border-radius: 5px;
+                padding: 5px;
+                color: white;
+            }
+            QPushButton {
+                background-color: #2ecc71;
+                border: none;
+                border-radius: 5px;
+                padding: 8px 16px;
+                color: white;
+            }
+            QPushButton:hover {
+                background-color: #27ae60;
+            }
+        """)
+
+class Pin(QGraphicsItem):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable)
+        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
+        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
+        self.setAcceptHoverEvents(True)
+        self.hover = False
+        self.radius = 5
+        self._dragging = False
+        
+    def boundingRect(self):
+        return QRectF(-self.radius, -self.radius, 
+                     self.radius * 2, self.radius * 2)
+        
+    def paint(self, painter, option, widget=None):
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        
+        if self.isSelected():
+            color = QColor("#2ecc71")
+        elif self.hover:
+            color = QColor("#3498db")
+        else:
+            color = QColor("#ffffff")
+            
+        painter.setPen(QPen(color.darker(120), 1))
+        painter.setBrush(QBrush(color))
+        painter.drawEllipse(self.boundingRect())
+        
+    def hoverEnterEvent(self, event):
+        self.hover = True
+        self.update()
+        super().hoverEnterEvent(event)
+        
+    def hoverLeaveEvent(self, event):
+        self.hover = False
+        self.update()
+        super().hoverLeaveEvent(event)
+        
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.RightButton and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            parent_connection = self.parentItem()
+            # This check is modified to use the class name as a string to break
+            # the circular dependency between Pin and ConnectionItem at import time.
+            if parent_connection and parent_connection.__class__.__name__ == 'ConnectionItem':
+                parent_connection.remove_pin(self)
+                if self.scene():
+                    self.scene().removeItem(self)
+                event.accept()
                 return
+        else:
+            self._dragging = True
+            super().mousePressEvent(event)
             
-            children = self.node.children[:]
-            parent_node = self.node.parent_node
+    def mouseReleaseEvent(self, event):
+        self._dragging = False
+        super().mouseReleaseEvent(event)
             
-            for frame in scene.frames[:]:
-                if self.node in frame.nodes:
-                    if len(frame.nodes) == 1:
-                        scene.removeItem(frame)
-                        scene.frames.remove(frame)
-                    else:
-                        frame.nodes.remove(self.node)
-                        frame.updateGeometry()
-            
-            if parent_node:
-                if self.node in parent_node.children:
-                    parent_node.children.remove(self.node)
-                
-                for child in children:
-                    child.parent_node = parent_node
-                    if child not in parent_node.children:
-                        parent_node.children.append(child)
-                    
-                    new_conn = ConnectionItem(parent_node, child)
-                    scene.addItem(new_conn)
-                    scene.connections.append(new_conn)
-            else:
-                for child in children:
-                    child.parent_node = None
-            
-            for conn in scene.connections[:]:
-                if self.node in (conn.start_node, conn.end_node):
-                    for pin in conn.pins[:]:
-                        conn.remove_pin(pin)
-                    scene.removeItem(conn)
-                    if conn in scene.connections:
-                        scene.connections.remove(conn)
-            
-            self.node.children.clear()
-            self.node.parent_node = None
-            
-            if self.node in scene.nodes:
-                scene.nodes.remove(self.node)
-            scene.removeItem(self.node)
-            
-            scene.update_connections()
-            
-            if scene.window and scene.window.current_node == self.node:
-                scene.window.current_node = None
-                scene.window.message_input.setPlaceholderText("Type your message...")
-            
-        except Exception as e:
-            QMessageBox.critical(None, "Error", f"An error occurred while deleting the node: {str(e)}")
-    
-    def regenerate_response(self):
-        from graphite_agents import ChatWorkerThread
-        if not self.node.parent_node:
-            return
-            
-        user_message = self.node.parent_node.text
-        
-        history = []
-        temp_node = self.node.parent_node
-        while temp_node:
-            if hasattr(temp_node, 'conversation_history'):
-                parent_history = [msg for msg in temp_node.conversation_history 
-                                if msg['role'] != 'assistant' or 
-                                temp_node.parent_node is not None]
-                history = parent_history + history
-            temp_node = temp_node.parent_node
-        
-        main_window = self.node.scene().window
-        if not main_window:
-            return
-            
-        main_window.message_input.setEnabled(False)
-        main_window.send_button.setEnabled(False)
-        main_window.loading_overlay.show()
-        
-        main_window.chat_thread = ChatWorkerThread(
-            main_window.agent,
-            user_message,
-            history
-        )
-        
-        main_window.chat_thread.finished.connect(
-            lambda response: self.handle_regenerated_response(response)
-        )
-        main_window.chat_thread.error.connect(main_window.handle_error)
-        main_window.chat_thread.start()
-    
-    def handle_regenerated_response(self, new_response):
-        try:
-            self.node.text = new_response
-            self.node.raw_text = new_response
-            self.node.process_text(new_response)
-            self.node._create_layouts()
-            
-            if self.node.parent_node:
-                parent_history = self.node.parent_node.conversation_history[:] if self.node.parent_node.conversation_history else []
-                
-                self.node.conversation_history = parent_history + [
-                    {'role': 'assistant', 'content': new_response}
-                ]
-                
-                for child in self.node.children:
-                    if child.conversation_history:
-                        divergence_point = len(parent_history)
-                        child.conversation_history = (
-                            self.node.conversation_history + 
-                            child.conversation_history[divergence_point:]
-                        )
-            
-            main_window = self.node.scene().window
-            if main_window:
-                main_window.message_input.setEnabled(True)
-                main_window.send_button.setEnabled(True)
-                main_window.loading_overlay.hide()
-                
-                main_window.session_manager.save_current_chat()
-            
-            self.node.update()
-            
-        except Exception as e:
-            QMessageBox.critical(None, "Error", f"An error occurred while regenerating: {str(e)}")
-            
-            main_window = self.node.scene().window
-            if main_window:
-                main_window.message_input.setEnabled(True)
-                main_window.send_button.setEnabled(True)
-                main_window.loading_overlay.hide()
-                
-    def cleanup_thread(self):
-        if self.takeaway_thread is not None:
-            self.takeaway_thread.finished.disconnect()
-            self.takeaway_thread.error.disconnect()
-            self.takeaway_thread.quit()
-            self.takeaway_thread.wait()
-            self.takeaway_thread = None
-            
-    def generate_takeaway(self):
-            scene = self.node.scene()
-            if scene and scene.window:
-                scene.window.generate_takeaway(self.node)
-                
-    def handle_takeaway_response(self, response, node_pos):
-        try:
-            scene = self.node.scene()
-            if not scene:
-                return
-                
-            note_pos = QPointF(node_pos.x() + self.node.width + 50, node_pos.y())
-            
-            note = scene.add_note(note_pos)
-            note.content = response
-            note.color = "#2d2d2d"
-            note.header_color = "#2ecc71"
-            
-            if scene.window:
-                scene.window.loading_overlay.hide()
-                
-            self.cleanup_thread()
-                
-        except Exception as e:
-            QMessageBox.critical(None, "Error", f"Error creating takeaway note: {str(e)}")
-            if scene and scene.window:
-                scene.window.loading_overlay.hide()
-                
-    def handle_takeaway_error(self, error_message):
-        QMessageBox.critical(None, "Error", f"Error generating takeaway: {error_message}")
-        scene = self.node.scene()
-        if scene and scene.window:
-            scene.window.loading_overlay.hide()
-            
-        self.cleanup_thread()
-        
-    def generate_explainer(self):
-        scene = self.node.scene()
-        if scene and scene.window:
-            scene.window.generate_explainer(self.node)
-            
-    def generate_chart(self, chart_type):
-        scene = self.node.scene()
-        if scene and scene.window:
-            scene.window.generate_chart(self.node, chart_type)
+    def itemChange(self, change, value):
+        if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange and self._dragging:
+            grid_size = 5
+            new_pos = QPointF(
+                round(value.x() / grid_size) * grid_size,
+                round(value.y() / grid_size) * grid_size
+            )
+            if self.parentItem().__class__.__name__ == 'ConnectionItem':
+                self.parentItem().prepareGeometryChange()
+                self.parentItem().update_path()
+            return new_pos
+        return super().itemChange(change, value)
 
 class ChatNode(QGraphicsItem):
     MAX_HEIGHT = 300
@@ -1478,75 +1488,6 @@ class ChatNode(QGraphicsItem):
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange and self.scene():
             self.scene().update_connections()
-        return super().itemChange(change, value)
-
-class Pin(QGraphicsItem):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable)
-        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
-        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
-        self.setAcceptHoverEvents(True)
-        self.hover = False
-        self.radius = 5
-        self._dragging = False
-        
-    def boundingRect(self):
-        return QRectF(-self.radius, -self.radius, 
-                     self.radius * 2, self.radius * 2)
-        
-    def paint(self, painter, option, widget=None):
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        
-        if self.isSelected():
-            color = QColor("#2ecc71")
-        elif self.hover:
-            color = QColor("#3498db")
-        else:
-            color = QColor("#ffffff")
-            
-        painter.setPen(QPen(color.darker(120), 1))
-        painter.setBrush(QBrush(color))
-        painter.drawEllipse(self.boundingRect())
-        
-    def hoverEnterEvent(self, event):
-        self.hover = True
-        self.update()
-        super().hoverEnterEvent(event)
-        
-    def hoverLeaveEvent(self, event):
-        self.hover = False
-        self.update()
-        super().hoverLeaveEvent(event)
-        
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.RightButton and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            parent_connection = self.parentItem()
-            if isinstance(parent_connection, ConnectionItem):
-                parent_connection.remove_pin(self)
-                if self.scene():
-                    self.scene().removeItem(self)
-                event.accept()
-                return
-        else:
-            self._dragging = True
-            super().mousePressEvent(event)
-            
-    def mouseReleaseEvent(self, event):
-        self._dragging = False
-        super().mouseReleaseEvent(event)
-            
-    def itemChange(self, change, value):
-        if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange and self._dragging:
-            grid_size = 5
-            new_pos = QPointF(
-                round(value.x() / grid_size) * grid_size,
-                round(value.y() / grid_size) * grid_size
-            )
-            if isinstance(self.parentItem(), ConnectionItem):
-                self.parentItem().prepareGeometryChange()
-                self.parentItem().update_path()
-            return new_pos
         return super().itemChange(change, value)
 
 class ConnectionItem(QGraphicsItem):
@@ -1901,138 +1842,284 @@ class ConnectionItem(QGraphicsItem):
         self.is_selected = False
         self.update()
         super().focusOutEvent(event)
-            
-class ColorPickerDialog(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowFlags(
-            Qt.WindowType.Window |
-            Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.WindowStaysOnTopHint |
-            Qt.WindowType.Popup
-        )
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        self.setModal(False)
-        self.resize(200, 180)
-        
-        self.container = QWidget(self)
-        dialog_layout = QVBoxLayout(self)
-        dialog_layout.setContentsMargins(0, 0, 0, 0)
-        dialog_layout.setSpacing(0)
-        dialog_layout.addWidget(self.container)
-        
-        main_layout = QVBoxLayout(self.container)
-        main_layout.setSpacing(15)
-        main_layout.setContentsMargins(10, 10, 10, 10)
 
-        full_label = QLabel("Frame Colors")
-        full_label.setStyleSheet("color: #ffffff; font-size: 10px;")
-        main_layout.addWidget(full_label)
-        
-        full_color_layout = QGridLayout()
-        full_color_layout.setSpacing(8)
-        
-        col = 0
-        full_colors = [c for c in FRAME_COLORS.items() if c[1]["type"] == "full"]
-        for color_name, color_data in full_colors:
-            btn = QPushButton()
-            btn.setFixedSize(40, 40)
-            btn.setToolTip(color_name)
-            btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            
-            btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {color_data["color"]};
-                    border: 2px solid #555555;
-                    border-radius: 20px;
-                }}
-                QPushButton:hover {{
-                    border: 2px solid #ffffff;
-                }}
-            """)
-            
-            btn.clicked.connect(
-                lambda checked, c=color_data: self.color_selected(c["color"], "full")
-            )
-            full_color_layout.addWidget(btn, 0, col)
-            col += 1
-            
-        main_layout.addLayout(full_color_layout)
-        
-        header_label = QLabel("Header Colors Only")
-        header_label.setStyleSheet("color: #ffffff; font-size: 10px;")
-        main_layout.addWidget(header_label)
-        
-        header_color_layout = QGridLayout()
-        header_color_layout.setSpacing(8)
-        
-        col = 0
-        header_colors = [c for c in FRAME_COLORS.items() if c[1]["type"] == "header"]
-        for color_name, color_data in header_colors:
-            btn = QPushButton()
-            btn.setFixedSize(40, 40)
-            btn.setToolTip(color_name)
-            btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            
-            gradient = QLinearGradient(0, 0, 0, 40)
-            gradient.setColorAt(0, QColor(color_data["color"]))
-            gradient.setColorAt(1, QColor("#2d2d2d"))
-            
-            btn.setStyleSheet(f"""
-                QPushButton {{
-                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                        stop:0 {color_data["color"]},
-                        stop:0.3 {color_data["color"]},
-                        stop:0.31 #2d2d2d,
-                        stop:1 #2d2d2d);
-                    border: 2px solid #555555;
-                    border-radius: 20px;
-                }}
-                QPushButton:hover {{
-                    border: 2px solid #ffffff;
-                }}
-            """)
-            
-            btn.clicked.connect(
-                lambda checked, c=color_data: self.color_selected(c["color"], "header")
-            )
-            header_color_layout.addWidget(btn, 0, col)
-            col += 1
-            
-        main_layout.addLayout(header_color_layout)
-        
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(20)
-        shadow.setColor(QColor(0, 0, 0, 180))
-        shadow.setOffset(0, 0)
-        self.container.setGraphicsEffect(shadow)
+class ChatNodeContextMenu(QMenu):
+    def __init__(self, node, parent=None):
+        super().__init__(parent)
+        self.node = node
+        self.takeaway_thread = None
         
         self.setStyleSheet("""
-            QDialog {
-                background: transparent;
+            QMenu {
+                background-color: #2d2d2d;
+                border: 1px solid #3f3f3f;
+                border-radius: 4px;
+                padding: 4px;
             }
-            QWidget#container {
-                background-color: #1e1e1e;
-                border-radius: 8px;
+            QMenu::item {
+                background-color: transparent;
+                padding: 8px 20px;
+                border-radius: 4px;
+                color: white;
+            }
+            QMenu::item:selected {
+                background-color: #3498db;
+            }
+            QMenu::separator {
+                height: 1px;
+                background-color: #3f3f3f;
+                margin: 4px 0px;
             }
         """)
         
-        self.selected_color = None
-        self.selected_type = None
+        copy_action = QAction("Copy Text", self)
+        copy_action.setIcon(qta.icon('fa5s.copy', color='white'))
+        copy_action.triggered.connect(self.copy_text)
+        self.addAction(copy_action)
         
-    def color_selected(self, color, color_type):
-        self.selected_color = color
-        self.selected_type = color_type
-        self.accept()
+        takeaway_action = QAction("Generate Key Takeaway", self)
+        takeaway_action.setIcon(qta.icon('fa5s.lightbulb', color='white'))
+        takeaway_action.triggered.connect(self.generate_takeaway)
+        self.addAction(takeaway_action)
         
-    def get_selected_color(self):
-        return self.selected_color, self.selected_type
+        self.addSeparator()
+        
+        explainer_action = QAction("Generate Explainer Note", self)
+        explainer_action.setIcon(qta.icon('fa5s.question', color='white'))
+        explainer_action.triggered.connect(self.generate_explainer)
+        self.addAction(explainer_action)
+        
+        chart_menu = QMenu("Generate Chart", self)
+        chart_menu.setIcon(qta.icon('fa5s.chart-bar', color='white'))
+        chart_menu.setStyleSheet(self.styleSheet())
+        
+        chart_types = [
+            ("Bar Chart", "bar", 'fa5s.chart-bar'),
+            ("Line Graph", "line", 'fa5s.chart-line'),
+            ("Histogram", "histogram", 'fa5s.chart-area'),
+            ("Pie Chart", "pie", 'fa5s.chart-pie'),
+            ("Sankey Diagram", "sankey", 'fa5s.project-diagram')
+        ]
+        
+        for title, chart_type, icon in chart_types:
+            action = QAction(title, chart_menu)
+            action.setIcon(qta.icon(icon, color='white'))
+            action.triggered.connect(lambda checked, t=chart_type: self.generate_chart(t))
+            chart_menu.addAction(action)
+            
+        self.addMenu(chart_menu)
+        
+        self.addSeparator()
+        
+        delete_action = QAction("Delete Node", self)
+        delete_action.setIcon(qta.icon('fa5s.trash', color='white'))
+        delete_action.triggered.connect(self.delete_node)
+        self.addAction(delete_action)
+        
+        if not node.is_user:
+            self.addSeparator()
+            
+            regenerate_action = QAction("Regenerate Response", self)
+            regenerate_action.setIcon(qta.icon('fa5s.sync', color='white'))
+            regenerate_action.triggered.connect(self.regenerate_response)
+            self.addAction(regenerate_action)
+            
+        self.destroyed.connect(self.cleanup_thread)
     
-    def focusOutEvent(self, event):
-        self.close()
-        super().focusOutEvent(event)
+    def copy_text(self):
+        clipboard = QApplication.clipboard()
+        clipboard.setText(self.node.text)
     
+    def delete_node(self):
+        try:
+            scene = self.node.scene()
+            if not scene:
+                return
+            
+            children = self.node.children[:]
+            parent_node = self.node.parent_node
+            
+            for frame in scene.frames[:]:
+                if self.node in frame.nodes:
+                    if len(frame.nodes) == 1:
+                        scene.removeItem(frame)
+                        scene.frames.remove(frame)
+                    else:
+                        frame.nodes.remove(self.node)
+                        frame.updateGeometry()
+            
+            if parent_node:
+                if self.node in parent_node.children:
+                    parent_node.children.remove(self.node)
+                
+                for child in children:
+                    child.parent_node = parent_node
+                    if child not in parent_node.children:
+                        parent_node.children.append(child)
+                    
+                    new_conn = ConnectionItem(parent_node, child)
+                    scene.addItem(new_conn)
+                    scene.connections.append(new_conn)
+            else:
+                for child in children:
+                    child.parent_node = None
+            
+            for conn in scene.connections[:]:
+                if self.node in (conn.start_node, conn.end_node):
+                    for pin in conn.pins[:]:
+                        conn.remove_pin(pin)
+                    scene.removeItem(conn)
+                    if conn in scene.connections:
+                        scene.connections.remove(conn)
+            
+            self.node.children.clear()
+            self.node.parent_node = None
+            
+            if self.node in scene.nodes:
+                scene.nodes.remove(self.node)
+            scene.removeItem(self.node)
+            
+            scene.update_connections()
+            
+            if scene.window and scene.window.current_node == self.node:
+                scene.window.current_node = None
+                scene.window.message_input.setPlaceholderText("Type your message...")
+            
+        except Exception as e:
+            QMessageBox.critical(None, "Error", f"An error occurred while deleting the node: {str(e)}")
+    
+    def regenerate_response(self):
+        from graphite_agents import ChatWorkerThread
+        if not self.node.parent_node:
+            return
+            
+        user_message = self.node.parent_node.text
+        
+        history = []
+        temp_node = self.node.parent_node
+        while temp_node:
+            if hasattr(temp_node, 'conversation_history'):
+                parent_history = [msg for msg in temp_node.conversation_history 
+                                if msg['role'] != 'assistant' or 
+                                temp_node.parent_node is not None]
+                history = parent_history + history
+            temp_node = temp_node.parent_node
+        
+        main_window = self.node.scene().window
+        if not main_window:
+            return
+            
+        main_window.message_input.setEnabled(False)
+        main_window.send_button.setEnabled(False)
+        main_window.loading_overlay.show()
+        
+        main_window.chat_thread = ChatWorkerThread(
+            main_window.agent,
+            user_message,
+            history
+        )
+        
+        main_window.chat_thread.finished.connect(
+            lambda response: self.handle_regenerated_response(response)
+        )
+        main_window.chat_thread.error.connect(main_window.handle_error)
+        main_window.chat_thread.start()
+    
+    def handle_regenerated_response(self, new_response):
+        try:
+            self.node.text = new_response
+            self.node.raw_text = new_response
+            self.node.process_text(new_response)
+            self.node._create_layouts()
+            
+            if self.node.parent_node:
+                parent_history = self.node.parent_node.conversation_history[:] if self.node.parent_node.conversation_history else []
+                
+                self.node.conversation_history = parent_history + [
+                    {'role': 'assistant', 'content': new_response}
+                ]
+                
+                for child in self.node.children:
+                    if child.conversation_history:
+                        divergence_point = len(parent_history)
+                        child.conversation_history = (
+                            self.node.conversation_history + 
+                            child.conversation_history[divergence_point:]
+                        )
+            
+            main_window = self.node.scene().window
+            if main_window:
+                main_window.message_input.setEnabled(True)
+                main_window.send_button.setEnabled(True)
+                main_window.loading_overlay.hide()
+                
+                main_window.session_manager.save_current_chat()
+            
+            self.node.update()
+            
+        except Exception as e:
+            QMessageBox.critical(None, "Error", f"An error occurred while regenerating: {str(e)}")
+            
+            main_window = self.node.scene().window
+            if main_window:
+                main_window.message_input.setEnabled(True)
+                main_window.send_button.setEnabled(True)
+                main_window.loading_overlay.hide()
+                
+    def cleanup_thread(self):
+        if self.takeaway_thread is not None:
+            self.takeaway_thread.finished.disconnect()
+            self.takeaway_thread.error.disconnect()
+            self.takeaway_thread.quit()
+            self.takeaway_thread.wait()
+            self.takeaway_thread = None
+            
+    def generate_takeaway(self):
+            scene = self.node.scene()
+            if scene and scene.window:
+                scene.window.generate_takeaway(self.node)
+                
+    def handle_takeaway_response(self, response, node_pos):
+        try:
+            scene = self.node.scene()
+            if not scene:
+                return
+                
+            note_pos = QPointF(node_pos.x() + self.node.width + 50, node_pos.y())
+            
+            note = scene.add_note(note_pos)
+            note.content = response
+            note.color = "#2d2d2d"
+            note.header_color = "#2ecc71"
+            
+            if scene.window:
+                scene.window.loading_overlay.hide()
+                
+            self.cleanup_thread()
+                
+        except Exception as e:
+            QMessageBox.critical(None, "Error", f"Error creating takeaway note: {str(e)}")
+            if scene and scene.window:
+                scene.window.loading_overlay.hide()
+                
+    def handle_takeaway_error(self, error_message):
+        QMessageBox.critical(None, "Error", f"Error generating takeaway: {error_message}")
+        scene = self.node.scene()
+        if scene and scene.window:
+            scene.window.loading_overlay.hide()
+            
+        self.cleanup_thread()
+        
+    def generate_explainer(self):
+        scene = self.node.scene()
+        if scene and scene.window:
+            scene.window.generate_explainer(self.node)
+            
+    def generate_chart(self, chart_type):
+        scene = self.node.scene()
+        if scene and scene.window:
+            scene.window.generate_chart(self.node, chart_type)
+
 class Frame(QGraphicsItem):
     PADDING = 30
     HEADER_HEIGHT = 40
@@ -2102,14 +2189,6 @@ class Frame(QGraphicsItem):
         
         self._update_nodes_movable()
         
-    def __del__(self):
-        """
-        Destructor to ensure the animation is stopped when the object is deleted.
-        This prevents the animation from trying to update a destroyed item,
-        which causes the "Invalid window handle" error on application exit.
-        """
-        self.outline_animation.stop()
-
     def calculate_minimum_size(self):
         if not self.nodes:
             return QRectF()
@@ -3345,84 +3424,6 @@ class NavigationPin(QGraphicsItem):
                 self.scene().window.pin_overlay.update_pin(self)
         super().mouseDoubleClickEvent(event)
 
-class PinEditDialog(QDialog):
-    def __init__(self, title="", note="", parent=None):
-        super().__init__(parent)
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setModal(True)
-        self.resize(300, 200)
-        
-        self.container = QWidget(self)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.container)
-        
-        container_layout = QVBoxLayout(self.container)
-        container_layout.setSpacing(10)
-        container_layout.setContentsMargins(20, 20, 20, 20)
-        
-        title_label = QLabel("Pin Title")
-        container_layout.addWidget(title_label)
-        
-        self.title_input = QLineEdit(title)
-        self.title_input.setPlaceholderText("Enter pin title...")
-        container_layout.addWidget(self.title_input)
-        
-        note_label = QLabel("Note")
-        container_layout.addWidget(note_label)
-        
-        self.note_input = QTextEdit()
-        self.note_input.setPlaceholderText("Add a note...")
-        self.note_input.setText(note)
-        self.note_input.setMaximumHeight(80)
-        container_layout.addWidget(self.note_input)
-        
-        button_layout = QHBoxLayout()
-        
-        save_btn = QPushButton("Save")
-        save_btn.clicked.connect(self.accept)
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.reject)
-        
-        button_layout.addWidget(save_btn)
-        button_layout.addWidget(cancel_btn)
-        container_layout.addLayout(button_layout)
-        
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(20)
-        shadow.setColor(QColor(0, 0, 0, 180))
-        shadow.setOffset(0, 0)
-        self.container.setGraphicsEffect(shadow)
-        
-        self.container.setStyleSheet("""
-            QWidget {
-                background-color: #2d2d2d;
-                border-radius: 10px;
-            }
-            QLabel {
-                color: white;
-                font-size: 12px;
-            }
-            QLineEdit, QTextEdit {
-                background-color: #3f3f3f;
-                border: none;
-                border-radius: 5px;
-                padding: 5px;
-                color: white;
-            }
-            QPushButton {
-                background-color: #2ecc71;
-                border: none;
-                border-radius: 5px;
-                padding: 8px 16px;
-                color: white;
-            }
-            QPushButton:hover {
-                background-color: #27ae60;
-            }
-        """)
-
 class PinOverlay(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -3815,7 +3816,6 @@ class ChartItem(QGraphicsItem):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-        painter.setRenderHint(QPainter.RenderHint.HighQualityAntialiasing)
         
         shadow_path = QPainterPath()
         shadow_path.addRoundedRect(3, 3, self.width, self.height, 10, 10)
@@ -4328,9 +4328,11 @@ class ChatScene(QGraphicsScene):
             elif isinstance(item, ChartItem):
                 self.removeItem(item)
             elif isinstance(item, NavigationPin):
-                self.remove_pin(item)
-                if self.window and hasattr(self.window, 'pin_overlay'):
+                if hasattr(self.window, 'pin_overlay') and self.window.pin_overlay:
                     self.window.pin_overlay.remove_pin(item)
+                if item in self.pins:
+                    self.pins.remove(item)
+                self.removeItem(item)
             
 class GridControl(QWidget):
     def __init__(self, parent=None):
@@ -4455,7 +4457,7 @@ class ChatView(QGraphicsView):
         self.h_scrollbar = CustomScrollBar(Qt.Orientation.Horizontal, self)
         
         self.v_scrollbar.valueChanged.connect(lambda v: self.verticalScrollBar().setValue(int(v)))
-        self.h_scrollbar.valueChanged.connect(lambda v: self.horizontalScrollBar().setValue(int(v)))
+        self.h_scrollbar.valueChanged.connect(lambda h: self.horizontalScrollBar().setValue(int(h)))
         
         self.setScene(ChatScene(window))
         
@@ -4976,107 +4978,69 @@ class HelpDialog(QDialog):
 class ModelSelectionDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowFlags(
-            Qt.WindowType.Window |
-            Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.WindowStaysOnTopHint
-        )
-        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setModal(False)
-        self.resize(500, 350)
+        self.setWindowTitle("Ollama Model Settings")
+        self.setMinimumWidth(500)
+        self.setStyleSheet(StyleSheet.DARK_THEME)
         self.worker_thread = None
 
-        # Main container for shadow and rounded corners
-        self.container = QWidget(self)
-        dialog_layout = QVBoxLayout(self)
-        dialog_layout.setContentsMargins(0, 0, 0, 0)
-        dialog_layout.addWidget(self.container)
+        layout = QVBoxLayout(self)
 
-        # Layout for actual content
-        main_layout = QVBoxLayout(self.container)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
+        info_label = QLabel(
+            "Configure the default model for chat tasks when using the local Ollama provider."
+        )
+        info_label.setWordWrap(True)
+        info_label.setStyleSheet("color: #d4d4d4; margin-bottom: 15px;")
+        layout.addWidget(info_label)
+        
+        form_layout = QFormLayout()
+        form_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows)
+        form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
 
-        self.title_bar = CustomTitleBar(self)
-        self.title_bar.title.setText("Model Selection")
-        main_layout.addWidget(self.title_bar)
-
-        content_widget = QWidget()
-        content_layout = QVBoxLayout(content_widget)
-        content_layout.setSpacing(15)
-        content_layout.setContentsMargins(20, 20, 20, 20)
-
-        # Model list
         self.models = [
-            'gpt-oss:20b', 'phi4:14b', 'gemma3:12b', 'deepseek-r1:8b', 
-            'deepseek-r1:14b', 'deepseek-r1:32b', 'qwen3:8b', 'qwen3:14b',
-            'qwen2.5:7b-instruct', 'qwen2.5:7b', 'qwen2.5:14b', 'mistral:7b'
+            'qwen2.5:7b-instruct', 'llama3:8b', 'phi3:latest', 'mistral:7b',
+            'gemma:7b', 'codegemma:7b', 'deepseek-coder:6.7b'
         ]
 
-        # Current Model Display
-        current_model_label = QLabel(f"Current Active Model: {config.CURRENT_MODEL}")
-        current_model_label.setObjectName("currentModelLabel")
-        content_layout.addWidget(current_model_label)
+        self.current_model_label = QLabel(f"<b>{config.CURRENT_MODEL}</b>")
+        self.current_model_label.setStyleSheet("color: #2ecc71;")
+        form_layout.addRow("Current Active Chat Model:", self.current_model_label)
 
-        # Dropdown for presets
-        preset_label = QLabel("Select from a preset:")
-        content_layout.addWidget(preset_label)
         self.model_combo = QComboBox()
-        self.model_combo.addItems(self.models)
+        self.model_combo.addItems([""] + self.models)
         self.model_combo.currentTextChanged.connect(self.on_combo_change)
-        content_layout.addWidget(self.model_combo)
+        form_layout.addRow("Preset Model:", self.model_combo)
 
-        # Manual input field
-        manual_label = QLabel("Or enter a custom model name:")
-        content_layout.addWidget(manual_label)
         self.model_input = QLineEdit()
         self.model_input.setPlaceholderText("e.g., llama3:latest")
         self.model_input.textChanged.connect(self.on_text_change)
-        content_layout.addWidget(self.model_input)
+        form_layout.addRow("Custom Model Name:", self.model_input)
         
-        # Initialize with current model
+        layout.addLayout(form_layout)
+
         self.model_input.setText(config.CURRENT_MODEL)
 
-        # Status Label for feedback
-        self.status_label = QLabel("Enter a model name and click Apply to validate and save.")
+        self.status_label = QLabel("Enter a model name and click Save to validate and set the model.")
         self.status_label.setWordWrap(True)
         self.status_label.setObjectName("statusLabel")
-        content_layout.addWidget(self.status_label)
-        content_layout.addStretch()
+        self.status_label.setStyleSheet("color: #e67e22; min-height: 40px;")
+        layout.addWidget(self.status_label)
+        layout.addStretch()
 
-        # Apply Button
-        self.apply_button = QPushButton("Apply & Save")
-        self.apply_button.clicked.connect(self.apply_model_selection)
-        content_layout.addWidget(self.apply_button)
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+
+        self.save_button = QPushButton("Save")
+        self.save_button.clicked.connect(self.save_settings)
+        button_layout.addWidget(self.save_button)
         
-        main_layout.addWidget(content_widget)
+        cancel_button = QPushButton("Cancel")
+        cancel_button.clicked.connect(self.reject)
+        button_layout.addWidget(cancel_button)
 
-        # Shadow effect
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(20)
-        shadow.setColor(QColor(0, 0, 0, 180))
-        shadow.setOffset(0, 0)
-        self.container.setGraphicsEffect(shadow)
-
-        self.setStyleSheet("""
-            ModelSelectionDialog { background: transparent; }
-            QWidget {
-                background-color: #1e1e1e;
-                border-radius: 8px;
-            }
-            QLabel { color: #ccc; font-size: 12px; }
-            QLabel#currentModelLabel { color: #2ecc71; font-weight: bold; }
-            QLabel#statusLabel { color: #e67e22; min-height: 40px; }
-        """)
+        layout.addLayout(button_layout)
 
     def closeEvent(self, event):
-        """
-        Safely handle closing the dialog while the worker thread may be running.
-        """
         if self.worker_thread and self.worker_thread.isRunning():
-            # Disconnect signals to prevent the thread from trying to communicate
-            # with this dialog after it has been destroyed.
             try:
                 self.worker_thread.status_update.disconnect(self.handle_status_update)
                 self.worker_thread.finished.disconnect(self.handle_worker_finished)
@@ -5086,28 +5050,28 @@ class ModelSelectionDialog(QDialog):
         super().closeEvent(event)
 
     def on_combo_change(self, text):
-        # When dropdown changes, update the text field. Disconnect to prevent loop.
+        if not text:
+            return
         self.model_input.textChanged.disconnect(self.on_text_change)
         self.model_input.setText(text)
         self.model_input.textChanged.connect(self.on_text_change)
 
     def on_text_change(self, text):
-        # When text field changes, update dropdown. Disconnect to prevent loop.
         self.model_combo.currentTextChanged.disconnect(self.on_combo_change)
         if text in self.models:
             self.model_combo.setCurrentText(text)
         else:
-            self.model_combo.setCurrentIndex(-1) # No match
+            self.model_combo.setCurrentIndex(0)
         self.model_combo.currentTextChanged.connect(self.on_combo_change)
 
-    def apply_model_selection(self):
+    def save_settings(self):
         model_name = self.model_input.text().strip()
         if not model_name:
             self.status_label.setText("Model name cannot be empty.")
             return
 
-        self.apply_button.setEnabled(False)
-        self.apply_button.setText("Working...")
+        self.save_button.setEnabled(False)
+        self.save_button.setText("Validating...")
         
         self.worker_thread = ModelPullWorkerThread(model_name)
         self.worker_thread.status_update.connect(self.handle_status_update)
@@ -5117,18 +5081,233 @@ class ModelSelectionDialog(QDialog):
 
     def handle_status_update(self, message):
         self.status_label.setText(message)
+        self.status_label.setStyleSheet("color: #3498db;")
 
     def handle_worker_finished(self, message, model_name):
         config.set_current_model(model_name)
         self.reset_button()
         QMessageBox.information(self, "Success", message)
-        self.close()
+        self.accept()
 
     def handle_worker_error(self, error_message):
         self.status_label.setText(f"Error: {error_message}")
+        self.status_label.setStyleSheet("color: #e74c3c;")
         self.reset_button()
         QMessageBox.warning(self, "Model Error", error_message)
 
     def reset_button(self):
-        self.apply_button.setEnabled(True)
-        self.apply_button.setText("Apply & Save")
+        self.save_button.setEnabled(True)
+        self.save_button.setText("Save")
+
+class APISettingsDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("API Endpoint Configuration")
+        self.setMinimumWidth(700)
+        self.setStyleSheet(StyleSheet.DARK_THEME)
+
+        layout = QVBoxLayout(self)
+        
+        provider_label = QLabel("API Provider:")
+        provider_label.setStyleSheet("color: #ffffff; font-weight: bold;")
+        layout.addWidget(provider_label)
+        
+        self.provider_combo = QComboBox()
+        self.provider_combo.addItem(config.API_PROVIDER_OPENAI)
+        self.provider_combo.addItem(config.API_PROVIDER_GEMINI)
+        self.provider_combo.currentTextChanged.connect(self._on_provider_changed)
+        layout.addWidget(self.provider_combo)
+
+        info = QLabel(
+            "Configure your API endpoint.\n"
+            "OpenAI-Compatible works with: OpenAI, LiteLLM, Anthropic, OpenRouter, etc.\n\n"
+            "Choose different models for different tasks."
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet("color: #d4d4d4; margin-bottom: 15px; margin-top: 10px;")
+        layout.addWidget(info)
+
+        self.base_url_label = QLabel("Base URL:")
+        self.base_url_label.setStyleSheet("color: #ffffff; font-weight: bold;")
+        layout.addWidget(self.base_url_label)
+
+        self.base_url_input = QLineEdit()
+        self.base_url_input.setPlaceholderText("https://api.openai.com/v1")
+        self.base_url_input.setText(os.getenv('GRAPHITE_API_BASE', 'https://api.openai.com/v1'))
+        layout.addWidget(self.base_url_input)
+
+        api_key_label = QLabel("API Key:")
+        api_key_label.setStyleSheet("color: #ffffff; font-weight: bold; margin-top: 10px;")
+        layout.addWidget(api_key_label)
+
+        self.api_key_input = QLineEdit()
+        self.api_key_input.setEchoMode(QLineEdit.Password)
+        self.api_key_input.setPlaceholderText("Enter your API key...")
+        self.api_key_input.setText(os.getenv('GRAPHITE_API_KEY', ''))
+        layout.addWidget(self.api_key_input)
+
+        self.load_btn = QPushButton("Load Models from Endpoint")
+        self.load_btn.clicked.connect(self.load_models_from_endpoint)
+        layout.addWidget(self.load_btn)
+
+        models_label = QLabel("Model Selection (per task):")
+        models_label.setStyleSheet("color: #ffffff; font-weight: bold; margin-top: 15px;")
+        layout.addWidget(models_label)
+
+        self.model_combos = {}
+
+        title_label = QLabel("Title Generation (fast, cheap model):")
+        title_label.setStyleSheet("color: #d4d4d4; margin-top: 8px;")
+        layout.addWidget(title_label)
+        self.title_combo = QComboBox()
+        self.title_combo.setPlaceholderText("Select model...")
+        self.model_combos[config.TASK_TITLE] = self.title_combo
+        layout.addWidget(self.title_combo)
+
+        chat_label = QLabel("Chat, Explain, Takeaways (main model):")
+        chat_label.setStyleSheet("color: #d4d4d4; margin-top: 8px;")
+        layout.addWidget(chat_label)
+        self.chat_combo = QComboBox()
+        self.chat_combo.setPlaceholderText("Select model...")
+        self.model_combos[config.TASK_CHAT] = self.chat_combo
+        layout.addWidget(self.chat_combo)
+
+        chart_label = QLabel("Chart Generation (code-capable model):")
+        chart_label.setStyleSheet("color: #d4d4d4; margin-top: 8px;")
+        layout.addWidget(chart_label)
+        self.chart_combo = QComboBox()
+        self.chart_combo.setPlaceholderText("Select model...")
+        self.model_combos[config.TASK_CHART] = self.chart_combo
+        layout.addWidget(self.chart_combo)
+
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+
+        save_btn = QPushButton("Save Configuration")
+        save_btn.clicked.connect(self.save_configuration)
+        button_layout.addWidget(save_btn)
+
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        button_layout.addWidget(cancel_btn)
+
+        layout.addLayout(button_layout)
+        
+        saved_provider = os.getenv('GRAPHITE_API_PROVIDER', config.API_PROVIDER_OPENAI)
+        self.provider_combo.setCurrentText(saved_provider)
+        self._on_provider_changed(saved_provider)
+
+    def _populate_models(self, models):
+        """Helper function to populate all model dropdowns with a given list."""
+        for combo in self.model_combos.values():
+            combo.clear()
+            combo.addItems(models)
+    
+    def _on_provider_changed(self, provider_name):
+        is_openai = (provider_name == config.API_PROVIDER_OPENAI)
+        
+        # Show/hide UI elements based on provider
+        self.base_url_label.setVisible(is_openai)
+        self.base_url_input.setVisible(is_openai)
+        self.load_btn.setVisible(is_openai)
+        
+        if is_openai:
+            self.api_key_input.setPlaceholderText("Enter your OpenAI-compatible API key...")
+            key = os.getenv('GRAPHITE_OPENAI_API_KEY', '')
+            self.api_key_input.setText(key)
+            self._populate_models([]) # Clear models, require user to load
+        else: # Gemini
+            self.api_key_input.setPlaceholderText("Enter your Google Gemini API key...")
+            key = os.getenv('GRAPHITE_GEMINI_API_KEY', '')
+            self.api_key_input.setText(key)
+            # Immediately populate with the static list, no API call needed.
+            self._populate_models(api_provider.GEMINI_MODELS_STATIC)
+
+    def load_models_from_endpoint(self):
+        provider = self.provider_combo.currentText()
+        base_url = self.base_url_input.text().strip()
+        api_key = self.api_key_input.text().strip()
+
+        if not base_url:
+            QMessageBox.warning(self, "Missing Information", "Please enter the Base URL for the OpenAI-compatible provider.")
+            return
+        if not api_key:
+            QMessageBox.warning(self, "Missing Information", "Please enter the API Key.")
+            return
+
+        try:
+            api_provider.initialize_api(provider, api_key, base_url)
+            models = api_provider.get_available_models()
+            self._populate_models(models)
+
+            QMessageBox.information(
+                self,
+                "Models Loaded",
+                f"Successfully loaded {len(models)} models!\n\nNow select a model for each task."
+            )
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Failed to Load Models",
+                f"Could not fetch models from API:\n\n{str(e)}"
+            )
+            # Graceful fallback for Gemini on API call failure
+            if provider == config.API_PROVIDER_GEMINI:
+                QMessageBox.warning(
+                    self, 
+                    "Using Fallback List",
+                    "Could not reach the API. Populating with a standard list of Gemini models."
+                )
+                self._populate_models(api_provider.GEMINI_MODELS_STATIC)
+
+
+    def save_configuration(self):
+        provider = self.provider_combo.currentText()
+        base_url = self.base_url_input.text().strip()
+        api_key = self.api_key_input.text().strip()
+
+        if not api_key:
+            QMessageBox.warning(self, "Missing API Key", "Please enter your API Key.")
+            return
+
+        for task_key, combo in self.model_combos.items():
+            if not combo.currentText():
+                QMessageBox.warning(
+                    self,
+                    "Missing Model Selection",
+                    f"Please select a model for all tasks.\n\nMissing: {task_key}"
+                )
+                return
+
+        try:
+            os.environ['GRAPHITE_API_PROVIDER'] = provider
+            if provider == config.API_PROVIDER_OPENAI:
+                os.environ['GRAPHITE_OPENAI_API_KEY'] = api_key
+                os.environ['GRAPHITE_API_BASE'] = base_url
+            else:
+                 os.environ['GRAPHITE_GEMINI_API_KEY'] = api_key
+
+
+            api_provider.initialize_api(provider, api_key, base_url)
+
+            for task_key, combo in self.model_combos.items():
+                api_provider.set_task_model(task_key, combo.currentText())
+
+            task_models = api_provider.get_task_models()
+            
+            QMessageBox.information(
+                self,
+                "Configuration Saved",
+                (f"API configured successfully for {provider}!\n\n"
+                 f"Title Model: {task_models[config.TASK_TITLE]}\n"
+                 f"Chat Model: {task_models[config.TASK_CHAT]}\n"
+                 f"Chart Model: {task_models[config.TASK_CHART]}")
+            )
+            self.accept()
+
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Configuration Failed",
+                f"Failed to save configuration:\n\n{str(e)}"
+            )
