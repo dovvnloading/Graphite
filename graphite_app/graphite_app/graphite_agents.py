@@ -2,6 +2,7 @@ import ollama
 import json
 from PySide6.QtCore import QThread, Signal, QPointF
 import graphite_config as config
+import api_provider
 
 class ChatWorkerThread(QThread):
     finished = Signal(str)
@@ -33,7 +34,7 @@ class ChatWorker:
                 *self.conversation_history,
                 {'role': 'user', 'content': user_message}
             ]
-            response = ollama.chat(model=config.CURRENT_MODEL, messages=messages)
+            response = api_provider.chat(task=config.TASK_CHAT, messages=messages)
             ai_message = response['message']['content']
             return ai_message
         except Exception as e:
@@ -140,7 +141,7 @@ Remember: Write as if explaining to a curious 5-year-old. No technical terms, no
             {'role': 'system', 'content': self.system_prompt},
             {'role': 'user', 'content': f"Explain this in simple terms: {text}"}
         ]
-        response = ollama.chat(model=config.CURRENT_MODEL, messages=messages)
+        response = api_provider.chat(task=config.TASK_CHAT, messages=messages)
         raw_response = response['message']['content']
         
         # Clean and format the response
@@ -221,7 +222,7 @@ No markdown formatting, no special characters."""
             {'role': 'system', 'content': self.system_prompt},
             {'role': 'user', 'content': f"Generate key takeaways from this text: {text}"}
         ]
-        response = ollama.chat(model=config.CURRENT_MODEL, messages=messages)
+        response = api_provider.chat(task=config.TASK_CHAT, messages=messages)
         raw_response = response['message']['content']
         
         # Clean and format the response
@@ -461,7 +462,7 @@ IMPORTANT:
             ]
             
             # Using a more specialized model for code/JSON generation
-            response = ollama.chat(model=config.CURRENT_MODEL, messages=messages)
+            response = api_provider.chat(task=config.TASK_CHART, messages=messages)
             cleaned_response = self.clean_response(response['message']['content'])
             
             # Parse JSON
