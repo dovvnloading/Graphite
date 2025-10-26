@@ -50,30 +50,26 @@ Graphite solves this by treating every conversation as an interactive mind-map o
 
 <table>
   <tr>
-    <td align="center"><b>Organize with Frames and Notes</b></td>
-    <td align="center"><b>Generate Charts from Data</b></td>
-  </tr>
-  <tr>
     <td><img src="https://github.com/user-attachments/assets/6615f973-85ea-4be3-a222-b4d458604946" alt="Frames and Notes"></td>
     <td><img src="https://github.com/user-attachments/assets/a6bdf518-a704-4b3d-8a84-ac1ed79a2587" alt="Chart Generation"></td>
-  </tr>
-  <tr>
-    <td align="center"><b>Navigate with Pins</b></td>
-    <td align="center"><b>Explore Conversation Branches</b></td>
   </tr>
   <tr>
     <td><img src="https://github.com/user-attachments/assets/267ffc5e-8bc0-4bdc-b236-f84ca591ad33" alt="Navigation Pins"></td>
     <td><img src="https://github.com/user-attachments/assets/ec6b1cdf-3740-41d4-b879-ed9e5df9e383" alt="Conversation Branches"></td>
   </tr>
-    <tr>
-    <td align="center"><b>Chat Library for Session Management</b></td>
-    <td align="center"><b>Flexible Model Selection</b></td>
-  </tr>
   <tr>
     <td><img src="https://github.com/user-attachments/assets/83e79a1c-879e-4f8f-9a61-10b4f2572127" alt="Chat Library"></td>
-    <td><img src="https://github.com/user-attachments/assets/0d08451c-1336-4fc4-8589-f960492b3544" alt="Screenshot 2025-10-23 140010" /></td>
+    <td><img src="https://github.com/user-attachments/assets/0d08451c-1336-4fc4-8589-f960492b3544" alt="Model Selection UI" /></td>
+  </tr>
+  <tr>
+    <td><img src="https://github.com/user-attachments/assets/30290b4f-7fa1-4ecc-8441-af2fc2d50b73" alt="New UI screenshot 1" /></td>
+    <td><img src="https://github.com/user-attachments/assets/3ed24b56-f03c-4ebb-b066-7363e1e3a23a" alt="New UI screenshot 2" /></td>
   </tr>
 </table>
+
+
+
+
 
 ## Technical Architecture
 
