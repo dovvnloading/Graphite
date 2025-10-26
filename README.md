@@ -3,7 +3,8 @@
 ![License](https://img.shields.io/badge/License-MIT-green.svg) ![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg) ![Framework](https://img.shields.io/badge/Framework-PySide6-blue.svg) ![GitHub stars](https://img.shields.io/github/stars/dovvnloading/Graphite?style=social) ![GitHub forks](https://img.shields.io/github/forks/dovvnloading/Graphite?style=social)
 
 <p align="center">
-  <img width="1920" height="1032" alt="Graphite Main Interface" src="https://github.com/user-attachments/assets/1c86682f-b62f-418c-ac1d-db385e432b16">
+  <img width="1920" height="1032" alt="Screenshot 2025-10-26 101411" src="https://github.com/user-attachments/assets/9aaad762-a03e-40c7-b2be-4e962c97d6e6" />
+
 </p>
 
 Graphite is a sophisticated desktop application that revolutionizes interaction with Large Language Models (LLMs). It transforms standard linear chat conversations into a dynamic, non-linear visual workspace. Built with Python and PySide6, Graphite leverages local LLMs via Ollama to provide a secure, private, and powerful tool for brainstorming, research, and complex problem-solving.
