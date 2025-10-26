@@ -70,20 +70,29 @@ Graphite solves this by treating every conversation as an interactive mind-map o
 
 
 
-
+---
 
 ## Technical Architecture
 
-Graphite has recently undergone a major architectural refactor to improve modularity and maintainability. The codebase is now split into logical components with a clear separation of concerns.
+Graphite is built on a modern, modular architecture designed for maintainability and scalability. The application is written in Python 3 and leverages the PySide6 framework for its cross-platform graphical user interface. The core principle is a clear separation of concerns, decoupling the UI, core logic, and AI services.
 
--   **`graphite_app.py`**: The main application entry point. It contains the primary `ChatWindow` class and is responsible for initializing and launching the application.
+The project is organized into the following key modules:
 
--   **`graphite_ui.py`**: Consolidates all classes related to the User Interface layer. This includes all Qt widgets, dialogs, custom graphics items (`ChatNode`, `ConnectionItem`, `Frame`), and view components (`ChatView`, `ChatScene`).
+-   **`graphite_app.py`**: The main application entry point. It contains the primary `ChatWindow` class, which orchestrates the entire application, assembling the UI, initializing backend services, and handling main event loops.
 
--   **`graphite_core.py`**: Manages the application's core logic and data persistence. It contains the `ChatDatabase` class for all SQLite operations and the `ChatSessionManager` for handling the serialization/deserialization of chat sessions.
+-   **`graphite_ui.py`**: The complete User Interface layer. This module contains all Qt-based components, from the main window's structure to custom dialogs (`APISettingsDialog`, `ChatLibraryDialog`). It also defines all custom-rendered `QGraphicsItem` subclasses that make up the interactive canvas, including `ChatNode`, `ConnectionItem`, `Frame`, `Note`, and `ChartItem`.
 
--   **`graphite_agents.py`**: Isolates all logic related to AI model interaction. This module contains the base `ChatAgent`, specialized tool agents (`KeyTakeawayAgent`, `ChartDataAgent`), and their corresponding `QThread` workers for asynchronous processing.
+-   **`graphite_core.py`**: The application's central nervous system, managing state and data persistence.
+    *   The `ChatSessionManager` handles the complex logic of serializing the entire scene graph (nodes, connections, frames, etc.) into a JSON format and deserializing it back into a live session.
+    *   The `ChatDatabase` class provides an interface to the local SQLite database, managing the storage and retrieval of saved chat sessions.
 
+-   **`graphite_agents.py`**: This module isolates all logic related to AI-powered tasks. It contains the base `ChatAgent` for conversations and specialized "tool" agents like `KeyTakeawayAgent`, `ExplainerAgent`, and `ChartDataAgent`. Each agent runs its network requests within a dedicated `QThread` worker to ensure the UI remains responsive.
+
+-   **`api_provider.py`**: A crucial abstraction layer that unifies communication with different AI model providers. It acts as a router, directing requests to either a local Ollama instance or any OpenAI-compatible remote API based on the user's configuration. This module makes the core application agnostic to the underlying LLM service.
+
+-   **`graphite_config.py`**: A centralized file for storing global configuration constants. It defines abstract task identifiers (e.g., `TASK_CHAT`, `TASK_CHART`) and default model names, providing a single source of truth for application-wide settings.
+
+  
 ## Technology Stack
 
 -   **Language:** Python 3.8+
