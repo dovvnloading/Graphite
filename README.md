@@ -7,7 +7,7 @@
 
 </p>
 
-Graphite is a sophisticated desktop application that revolutionizes interaction with Large Language Models (LLMs). It transforms standard linear chat conversations into a dynamic, non-linear visual workspace. Built with Python and PySide6, Graphite leverages local LLMs via Ollama to provide a secure, private, and powerful tool for brainstorming, research, and complex problem-solving.
+Graphite is an advanced desktop environment for human–AI collaboration. It transforms ordinary chat into a visual reasoning space, where ideas branch, connect, and evolve. Built with Python and PySide6, it seamlessly integrates Ollama, OpenAI, Gemini, Anthropic, and Groq models—offering a secure, local-first, and deeply intuitive workspace for research, creation, and thought.
 
 ## Table of Contents
 
