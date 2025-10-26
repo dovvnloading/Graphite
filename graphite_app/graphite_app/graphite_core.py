@@ -8,6 +8,8 @@ from PySide6.QtGui import QTransform
 
 # Import UI classes needed for serialization/deserialization
 from graphite_ui import Note, NavigationPin, ChartItem, ConnectionItem, Frame
+import graphite_config as config
+import api_provider
 
 class TitleGenerator:
     def __init__(self):
@@ -27,7 +29,7 @@ class TitleGenerator:
                 {'role': 'system', 'content': self.system_prompt},
                 {'role': 'user', 'content': f"Create a 2-3 word title for this message: {message}"}
             ]
-            response = ollama.chat(model='qwen2.5:3b', messages=messages)
+            response = api_provider.chat(task=config.TASK_TITLE, messages=messages)
             title = response['message']['content'].strip()
             # Clean up title if needed
             title = ' '.join(title.split()[:3])  # Ensure max 3 words
