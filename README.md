@@ -60,7 +60,8 @@ Graphite solves this by treating every conversation as an interactive mind-map o
   </tr>
   <tr>
     <td><img src="https://github.com/user-attachments/assets/83e79a1c-879e-4f8f-9a61-10b4f2572127" alt="Chat Library"></td>
-    <td><img src="https://github.com/user-attachments/assets/0d08451c-1336-4fc4-8589-f960492b3544" alt="Model Selection UI" /></td>
+    <td><img width="1918" height="1029" alt="Screenshot 2025-10-26 122645" src="https://github.com/user-attachments/assets/f6be870b-3557-4562-84ac-04fe6f1c61f9" />
+</td>
   </tr>
   <tr>
     <td><img src="https://github.com/user-attachments/assets/30290b4f-7fa1-4ecc-8441-af2fc2d50b73" alt="New UI screenshot 1" /></td>
