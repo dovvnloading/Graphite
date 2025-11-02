@@ -220,8 +220,11 @@ Here’s a look at the current state of the workspace:
 </tr>
 <tr>
 <td><img width="100%" src="https://github.com/user-attachments/assets/71cac9a0-6c23-4d67-ac38-30d8cd8028de" /></td>
-<td><img width="100%" src="https://github.com/user-attachments/assets/4623ec2b-86a1-406f-a37a-11c284c46aa8" /></td>
+<td><img width="100%" src="https://github.com/user-attachments/assets/1265bcf4-c8bd-41ff-95aa-dc8cac415281" /></td>
 </tr>
 </table>
+
+
+
 
 [Visit the prototype site](https://dovvnloading.github.io/Graphite-Site/)
