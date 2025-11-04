@@ -219,7 +219,7 @@ Here’s a look at the current state of the workspace:
 <td><img width="100%" src="https://github.com/user-attachments/assets/fab6ebe6-8bb2-4d43-8844-59691eadc31a" /></td>
 </tr>
 <tr>
-<td><img width="100%" src="https://github.com/user-attachments/assets/71cac9a0-6c23-4d67-ac38-30d8cd8028de" /></td>
+<td><img width="100%" src="https://github.com/user-attachments/assets/ce0388f9-8b26-4246-8aa9-6706eb82c251" /></td>
 <td><img width="100%" src="https://github.com/user-attachments/assets/1265bcf4-c8bd-41ff-95aa-dc8cac415281" /></td>
 </tr>
 </table>
