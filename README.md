@@ -11,10 +11,6 @@ Graphite is an advanced desktop environment for human–AI collaboration. It tra
 
 ---
 
-Exciting news at the bottom! 
-
----
-
 ## Table of Contents
 
 - [Overview](#overview)
@@ -195,36 +191,3 @@ Please open an issue first to discuss any major changes or new features.
 ## License
 
 This project is licensed under the **MIT License**. See the `LICENSE` file for more details.
-
----
----
----
-
-# News: 
-
-I’ve been quiet building. A lot has landed over the past few weeks — deep architectural work, new interaction models, UI refinement, and the groundwork for a stable v1.0.0 release.
-
-The goal hasn’t changed:  
-Graphite isn’t “a chat app with a twist.”  
-It’s a thinking canvas — a place to work through ideas, branch, compare, refine, and build intelligent workflows visually.
-
-Instead of rushing features and pretending it’s done, I took the opposite route:  
-strengthen the core, polish the fundamentals, and make sure the interface *feels* right before opening the doors wider.
-
-Here’s a look at the current state of the workspace:
-
-<table>
-<tr>
-<td><img width="100%" src="https://github.com/user-attachments/assets/2b4c806d-ff61-4a90-b0de-b669d9abdde3" /></td>
-<td><img width="100%" src="https://github.com/user-attachments/assets/fab6ebe6-8bb2-4d43-8844-59691eadc31a" /></td>
-</tr>
-<tr>
-<td><img width="100%" src="https://github.com/user-attachments/assets/ce0388f9-8b26-4246-8aa9-6706eb82c251" /></td>
-<td><img width="100%" src="https://github.com/user-attachments/assets/1265bcf4-c8bd-41ff-95aa-dc8cac415281" /></td>
-</tr>
-</table>
-
-
-
-
-[Visit the prototype site](https://dovvnloading.github.io/Graphite-Site/)
