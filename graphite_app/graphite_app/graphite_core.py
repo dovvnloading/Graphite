@@ -2,7 +2,6 @@ import json
 import sqlite3
 from datetime import datetime
 from pathlib import Path
-import ollama
 from PySide6.QtCore import QPointF
 from PySide6.QtGui import QTransform
 
@@ -42,9 +41,15 @@ class ChatDatabase:
         self.db_path = Path.home() / '.graphite' / 'chats.db'
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.init_database()
+
+    def _connect(self):
+        """Create a database connection with foreign keys enabled."""
+        conn = sqlite3.connect(self.db_path)
+        conn.execute("PRAGMA foreign_keys = ON")
+        return conn
         
     def init_database(self):
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             # Existing chats table
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS chats (
@@ -87,7 +92,7 @@ class ChatDatabase:
             
     def save_pins(self, chat_id, pins_data):
         """Save pins for a chat session"""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             # First delete existing pins for this chat
             conn.execute("DELETE FROM pins WHERE chat_id = ?", (chat_id,))
             
@@ -107,7 +112,7 @@ class ChatDatabase:
                 
     def load_pins(self, chat_id):
         """Load pins for a chat session"""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.execute("""
                 SELECT title, note, position_x, position_y
                 FROM pins WHERE chat_id = ?
@@ -123,7 +128,7 @@ class ChatDatabase:
             return pins
             
     def save_notes(self, chat_id, notes_data):
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             # First delete existing notes for this chat
             conn.execute("DELETE FROM notes WHERE chat_id = ?", (chat_id,))
             
@@ -146,7 +151,7 @@ class ChatDatabase:
                 ))
                 
     def load_notes(self, chat_id):
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.execute("""
                 SELECT content, position_x, position_y, width, height,
                        color, header_color
@@ -165,7 +170,7 @@ class ChatDatabase:
             return notes
             
     def save_chat(self, title, chat_data):
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.execute("""
                 INSERT INTO chats (title, data, updated_at)
                 VALUES (?, ?, CURRENT_TIMESTAMP)
@@ -174,7 +179,7 @@ class ChatDatabase:
             
     def get_latest_chat_id(self):
         """Get the ID of the most recently created chat"""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.execute("""
                 SELECT id FROM chats 
                 ORDER BY created_at DESC 
@@ -184,7 +189,7 @@ class ChatDatabase:
             return result[0] if result else None
             
     def update_chat(self, chat_id, title, chat_data):
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             conn.execute("""
                 UPDATE chats 
                 SET title = ?, data = ?, updated_at = CURRENT_TIMESTAMP
@@ -192,7 +197,7 @@ class ChatDatabase:
             """, (title, json.dumps(chat_data), chat_id))
             
     def load_chat(self, chat_id):
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             result = conn.execute("""
                 SELECT title, data FROM chats WHERE id = ?
             """, (chat_id,)).fetchone()
@@ -204,7 +209,7 @@ class ChatDatabase:
             return None
             
     def get_all_chats(self):
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             return conn.execute("""
                 SELECT id, title, created_at, updated_at 
                 FROM chats 
@@ -212,11 +217,11 @@ class ChatDatabase:
             """).fetchall()
             
     def delete_chat(self, chat_id):
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             conn.execute("DELETE FROM chats WHERE id = ?", (chat_id,))
             
     def rename_chat(self, chat_id, new_title):
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             conn.execute("""
                 UPDATE chats 
                 SET title = ?, updated_at = CURRENT_TIMESTAMP
@@ -377,7 +382,7 @@ class ChatSessionManager:
             scene.connections.append(connection)
         
         # Recreate pins
-        for pin_data in data['pins']:
+        for pin_data in data.get('pins', []):
             self.deserialize_pin(pin_data, connection)
             
         return connection
@@ -521,7 +526,7 @@ class ChatSessionManager:
                     note.width = note_data['size']['width']
                     note.height = note_data['size']['height']
                     note.color = note_data['color']
-                    note.header_color = note_data['header_color']
+                    note.header_color = note_data.get('header_color')
                 except Exception as e:
                     print(f"Error loading note: {str(e)}")
                     continue
@@ -551,16 +556,19 @@ class ChatSessionManager:
             # Restore view state
             if 'view_state' in chat['data']:
                 view_state = chat['data']['view_state']
-                self.window.chat_view._zoom_factor = view_state['zoom_factor']
+                zoom_factor = view_state.get('zoom_factor', 1.0)
+                scroll_position = view_state.get('scroll_position', {'x': 0, 'y': 0})
+
+                self.window.chat_view._zoom_factor = zoom_factor
                 self.window.chat_view.setTransform(QTransform().scale(
-                    view_state['zoom_factor'], 
-                    view_state['zoom_factor']
+                    zoom_factor,
+                    zoom_factor
                 ))
                 self.window.chat_view.horizontalScrollBar().setValue(
-                    view_state['scroll_position']['x']
+                    scroll_position.get('x', 0)
                 )
                 self.window.chat_view.verticalScrollBar().setValue(
-                    view_state['scroll_position']['y']
+                    scroll_position.get('y', 0)
                 )
     
             # Set current chat ID and update connections
@@ -588,25 +596,7 @@ class ChatSessionManager:
             return
             
         try:
-            chat_data = self.serialize_current_chat()
-            
-            # If this is a new chat, generate title from last message
-            if not self.current_chat_id:
-                last_message = self.window.chat_view.scene().nodes[-1].text
-                title = self.title_generator.generate_title(last_message)
-                self.current_chat_id = self.db.save_chat(title, chat_data)
-            else:
-                # For existing chats, fetch the current title from the database
-                chat = self.db.load_chat(self.current_chat_id)
-                if chat:
-                    title = chat['title']
-                    self.db.update_chat(self.current_chat_id, title, chat_data)
-                else:
-                    # Fallback if chat not found - create new chat
-                    last_message = self.window.chat_view.scene().nodes[-1].text
-                    title = self.title_generator.generate_title(last_message)
-                    self.current_chat_id = self.db.save_chat(title, chat_data)
-                    
+            self.serialize_current_chat()
         except Exception as e:
             print(f"Error saving chat: {str(e)}")
             raise
