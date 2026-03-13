@@ -1,3 +1,10 @@
+"""Persistence and session-serialization services for Graphite.
+
+The UI builds rich scene objects (nodes, connections, notes, frames, charts,
+and pins). This module translates those runtime objects into durable storage
+formats and reconstructs them later when reopening chats.
+"""
+
 import json
 import sqlite3
 from datetime import datetime
@@ -11,6 +18,7 @@ import graphite_config as config
 import api_provider
 
 class TitleGenerator:
+    """Generate concise 2-3 word titles for persisted chat sessions."""
     def __init__(self):
         self.system_prompt = """You are a title generation assistant. Your only job is to create short, 
         2-3 word titles based on conversation content. Rules:
@@ -37,6 +45,7 @@ class TitleGenerator:
             return f"Chat {datetime.now().strftime('%Y%m%d_%H%M')}"
 
 class ChatDatabase:
+    """Handle SQLite CRUD operations for chats, notes, and navigation pins."""
     def __init__(self):
         self.db_path = Path.home() / '.graphite' / 'chats.db'
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -49,6 +58,7 @@ class ChatDatabase:
         return conn
         
     def init_database(self):
+        """Create core application tables when the database is first opened."""
         with self._connect() as conn:
             # Existing chats table
             conn.execute("""
@@ -128,6 +138,7 @@ class ChatDatabase:
             return pins
             
     def save_notes(self, chat_id, notes_data):
+        """Replace all notes for ``chat_id`` with the provided serialized payload."""
         with self._connect() as conn:
             # First delete existing notes for this chat
             conn.execute("DELETE FROM notes WHERE chat_id = ?", (chat_id,))
@@ -151,6 +162,7 @@ class ChatDatabase:
                 ))
                 
     def load_notes(self, chat_id):
+        """Return all persisted notes for ``chat_id`` in UI-friendly dictionary form."""
         with self._connect() as conn:
             cursor = conn.execute("""
                 SELECT content, position_x, position_y, width, height,
@@ -170,6 +182,7 @@ class ChatDatabase:
             return notes
             
     def save_chat(self, title, chat_data):
+        """Persist a new chat snapshot and return the inserted row id."""
         with self._connect() as conn:
             cursor = conn.execute("""
                 INSERT INTO chats (title, data, updated_at)
@@ -189,6 +202,7 @@ class ChatDatabase:
             return result[0] if result else None
             
     def update_chat(self, chat_id, title, chat_data):
+        """Persist an updated snapshot for an existing chat session."""
         with self._connect() as conn:
             conn.execute("""
                 UPDATE chats 
@@ -197,6 +211,7 @@ class ChatDatabase:
             """, (title, json.dumps(chat_data), chat_id))
             
     def load_chat(self, chat_id):
+        """Fetch one chat record and deserialize its JSON scene payload."""
         with self._connect() as conn:
             result = conn.execute("""
                 SELECT title, data FROM chats WHERE id = ?
@@ -209,6 +224,7 @@ class ChatDatabase:
             return None
             
     def get_all_chats(self):
+        """List chats ordered by most recent activity for the sidebar/history UI."""
         with self._connect() as conn:
             return conn.execute("""
                 SELECT id, title, created_at, updated_at 
@@ -217,10 +233,12 @@ class ChatDatabase:
             """).fetchall()
             
     def delete_chat(self, chat_id):
+        """Delete a chat and its dependent records via foreign-key cascading."""
         with self._connect() as conn:
             conn.execute("DELETE FROM chats WHERE id = ?", (chat_id,))
             
     def rename_chat(self, chat_id, new_title):
+        """Update a chat title and refresh its modification timestamp."""
         with self._connect() as conn:
             conn.execute("""
                 UPDATE chats 
@@ -229,6 +247,7 @@ class ChatDatabase:
             """, (new_title, chat_id))
 
 class ChatSessionManager:
+    """Serialize and restore full chat scenes between the UI and persistent storage."""
     def __init__(self, window):
         self.window = window
         self.db = ChatDatabase()
@@ -359,13 +378,13 @@ class ChatSessionManager:
         return chart
         
     def deserialize_pin(self, data, connection):
-        """Recreate a pin from serialized data"""
+        """Recreate a connection pin from serialized position data."""
         pin = connection.add_pin(QPointF(0, 0))  # Create pin
         pin.setPos(data['position']['x'], data['position']['y'])
         return pin
         
     def deserialize_connection(self, data, scene):
-        """Recreate a connection from serialized data"""
+        """Recreate a connection and its pins from serialized node indices."""
         start_node = scene.nodes[data['start_node_index']]
         end_node = scene.nodes[data['end_node_index']]
         
