@@ -3704,48 +3704,50 @@ class ChartItem(QGraphicsItem):
         chart_type = self.data.get('type', '')
     
         if chart_type == 'sankey':
-            flows = self.data.get('flows', [])
-            if not flows:
-                ax.text(0.5, 0.5, 'No flow data provided', 
+            sankey_data = self.data.get('data', {})
+            nodes = sankey_data.get('nodes', []) if isinstance(sankey_data, dict) else []
+            links = sankey_data.get('links', []) if isinstance(sankey_data, dict) else []
+
+            if not nodes or not links:
+                ax.text(0.5, 0.5, 'No Sankey data provided',
                        ha='center', va='center')
-                return
-            
-            labels = []
-            sources = []
-            targets = []
-            values = []
-        
-            label_to_index = {}
-            for flow in flows:
-                source = abbreviate_text(flow.get('source', ''))
-                target = abbreviate_text(flow.get('target', ''))
-            
-                if source not in label_to_index:
-                    label_to_index[source] = len(label_to_index)
-                    labels.append(source)
-                if target not in label_to_index:
-                    label_to_index[target] = len(label_to_index)
-                    labels.append(target)
-                
-                sources.append(label_to_index[source])
-                targets.append(label_to_index[target])
-                values.append(flow.get('value', 0))
-            
-            from matplotlib.sankey import Sankey
-        
-            figsize = max(6, len(labels) * 0.5)
-            self.figure.set_size_inches(figsize, figsize * 0.75)
-        
-            sankey = Sankey(ax=ax, unit='', scale=0.01)
-            sankey.add(flows=values,
-                      labels=labels,
-                      orientations=[0] * len(values),
-                      pathlengths=[0.25] * len(values),
-                      patchlabel=None,
-                      alpha=0.7,
-                      facecolor='#3498db')
-                  
-            ax.axis('off')
+                ax.axis('off')
+            else:
+                node_names = [abbreviate_text(str(node.get('name', ''))) for node in nodes]
+                in_flow = [0.0] * len(node_names)
+                out_flow = [0.0] * len(node_names)
+
+                for link in links:
+                    try:
+                        source = int(link.get('source'))
+                        target = int(link.get('target'))
+                        value = float(link.get('value', 0))
+                    except (TypeError, ValueError):
+                        continue
+
+                    if 0 <= source < len(node_names) and 0 <= target < len(node_names):
+                        out_flow[source] += value
+                        in_flow[target] += value
+
+                values = [in_flow[i] - out_flow[i] for i in range(len(node_names))]
+
+                if values and sum(abs(v) for v in values) > 0:
+                    from matplotlib.sankey import Sankey
+
+                    sankey = Sankey(ax=ax, unit='', scale=0.01)
+                    sankey.add(flows=values,
+                              labels=node_names,
+                              orientations=[0] * len(values),
+                              pathlengths=[0.25] * len(values),
+                              patchlabel=None,
+                              alpha=0.7,
+                              facecolor='#3498db')
+                    sankey.finish()
+                else:
+                    ax.text(0.5, 0.5, 'Sankey links must contain non-zero flow',
+                           ha='center', va='center')
+
+                ax.axis('off')
         
         else:
             labels = [abbreviate_text(str(label)) for label in self.data.get('labels', [])]
@@ -3794,8 +3796,8 @@ class ChartItem(QGraphicsItem):
         
                 ax.grid(True, linestyle='--', alpha=0.3, linewidth=0.5)
             
-                if chart_type in ['bar', 'line']:
-                    plt.xticks(rotation=45, ha='right')
+            if chart_type in ['bar', 'line']:
+                plt.xticks(rotation=45, ha='right')
     
         self.figure.tight_layout(pad=1.8)
     
