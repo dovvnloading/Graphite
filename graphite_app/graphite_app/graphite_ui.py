@@ -5217,7 +5217,7 @@ class APISettingsDialog(QDialog):
             self.api_key_input.setPlaceholderText("Enter your OpenAI-compatible API key...")
             key = os.getenv('GRAPHITE_OPENAI_API_KEY', '')
             self.api_key_input.setText(key)
-            self._populate_models([]) # Clear models, require user to load
+            self._populate_models(api_provider.OPENAI_COMPAT_MODELS_STATIC)
         else: # Gemini
             self.api_key_input.setPlaceholderText("Enter your Google Gemini API key...")
             key = os.getenv('GRAPHITE_GEMINI_API_KEY', '')
@@ -5253,14 +5253,20 @@ class APISettingsDialog(QDialog):
                 "Failed to Load Models",
                 f"Could not fetch models from API:\n\n{str(e)}"
             )
-            # Graceful fallback for Gemini on API call failure
             if provider == config.API_PROVIDER_GEMINI:
                 QMessageBox.warning(
-                    self, 
+                    self,
                     "Using Fallback List",
                     "Could not reach the API. Populating with a standard list of Gemini models."
                 )
                 self._populate_models(api_provider.GEMINI_MODELS_STATIC)
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Using Fallback List",
+                    "Could not reach the API. Populating with a standard OpenAI-compatible model list."
+                )
+                self._populate_models(api_provider.OPENAI_COMPAT_MODELS_STATIC)
 
 
     def save_configuration(self):

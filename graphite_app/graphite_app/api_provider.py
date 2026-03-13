@@ -13,12 +13,43 @@ API_MODELS = {
 
 # Static, hard-coded list of reliable Gemini models. This is now the primary source.
 GEMINI_MODELS_STATIC = sorted([
-    "gemini-2.5-pro-latest",
+    "gemini-3.1-pro-preview",
+    "gemini-3-pro-preview",
+    "gemini-3-flash-preview",
+    "gemini-3-pro-image-preview",
     "gemini-2.5-pro",
-    "gemini-2.5-flash-latest",
     "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
     "gemini-2.0-flash",
-    "gemini-pro",
+    "gemini-2.0-flash-lite",
+])
+
+# Static model list for OpenAI-compatible endpoints (OpenAI, Anthropic, etc.).
+OPENAI_COMPAT_MODELS_STATIC = sorted([
+    "gpt-5.4",
+    "gpt-5.2",
+    "gpt-5",
+    "gpt-5-mini",
+    "gpt-5-nano",
+    "gpt-4.1",
+    "gpt-4.1-mini",
+    "gpt-4.1-nano",
+    "gpt-4o",
+    "gpt-4o-mini",
+    "claude-opus-4-6",
+    "claude-sonnet-4-6",
+    "claude-sonnet-4-5",
+    "claude-haiku-4-5",
+    "claude-opus-4-5",
+    "claude-opus-4-1",
+    "claude-opus-4",
+    "claude-sonnet-4",
+    "claude-3-7-sonnet",
+    "claude-3-5-sonnet",
+    "claude-3-5-haiku",
+    "claude-3-opus",
+    "claude-3-sonnet",
+    "claude-3-haiku",
 ])
 
 
@@ -148,7 +179,8 @@ def get_available_models():
     try:
         if API_PROVIDER_TYPE == config.API_PROVIDER_OPENAI:
             models = API_CLIENT.models.list()
-            return sorted([model.id for model in models.data])
+            endpoint_models = sorted([model.id for model in models.data])
+            return endpoint_models if endpoint_models else OPENAI_COMPAT_MODELS_STATIC
         elif API_PROVIDER_TYPE == config.API_PROVIDER_GEMINI:
             # The brittle API call has been removed. We now return a reliable, static list.
             return GEMINI_MODELS_STATIC
