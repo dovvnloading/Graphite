@@ -5,6 +5,7 @@ import graphite_config as config
 import api_provider
 
 class ChatWorkerThread(QThread):
+    """Run chat generation off the UI thread and emit success/error signals."""
     finished = Signal(str)
     error = Signal(str)
     
@@ -23,6 +24,7 @@ class ChatWorkerThread(QThread):
             self.error.emit(str(e))
 
 class ChatWorker:
+    """Compose chat messages and call the configured provider synchronously."""
     def __init__(self, system_prompt, conversation_history):
         self.system_prompt = system_prompt
         self.conversation_history = conversation_history
@@ -41,6 +43,7 @@ class ChatWorker:
             return f"Error: {str(e)}"
 
 class ChatAgent:
+    """Stateful assistant that tracks conversation history per node/session."""
     def __init__(self, name, persona):
         self.name = name or "AI Assistant"
         self.persona = persona or "(default persona)"
@@ -55,6 +58,7 @@ class ChatAgent:
         return ai_response
 
 class ExplainerAgent:
+    """Generate plain-language explanations and normalize the output format."""
     def __init__(self):
         self.system_prompt = """You are an expert at explaining complex topics in simple terms. Follow these principles in order:
 
@@ -84,7 +88,7 @@ Key Parts:
 Remember: Write as if explaining to a curious 5-year-old. No technical terms, no complex words."""
         
     def clean_text(self, text):
-        """Clean special characters and format text"""
+        """Normalize model output into the strict UI format expected by Graphite."""
         # Remove markdown and special characters
         replacements = [
             ('```', ''),
@@ -149,6 +153,7 @@ Remember: Write as if explaining to a curious 5-year-old. No technical terms, no
         return formatted_response
         
 class KeyTakeawayAgent:
+    """Produce concise actionable summaries with consistent section headings."""
     def __init__(self):
         self.system_prompt = """You are a key takeaway generator. Format your response exactly like this:
 
@@ -164,7 +169,7 @@ Keep total output under 150 words. Be direct and focused on practical value.
 No markdown formatting, no special characters."""
         
     def clean_text(self, text):
-        """Clean special characters and format text"""
+        """Normalize model output into the strict UI format expected by Graphite."""
         # Remove markdown and special characters
         replacements = [
             ('```', ''),  # code blocks
@@ -230,6 +235,7 @@ No markdown formatting, no special characters."""
         return formatted_response
 
 class KeyTakeawayWorkerThread(QThread):
+    """Thread wrapper for key-takeaway generation tied to a node position."""
     finished = Signal(str, QPointF)  # Signal includes response and node position
     error = Signal(str)
     
@@ -257,6 +263,7 @@ class KeyTakeawayWorkerThread(QThread):
         self._is_running = False
         
 class ChartDataAgent:
+    """Extract structured chart payloads from natural language text."""
     def __init__(self):
         self.system_prompt = """You are a data extraction agent that converts text into chart data. Always output valid JSON with these structures:
 
@@ -340,7 +347,7 @@ IMPORTANT:
         return text
 
     def validate_chart_data(self, data, chart_type):
-        """Validate chart data based on type and requirements"""
+        """Validate chart payload shape and value constraints by chart type."""
         try:
             if chart_type == 'sankey':
                 if not all(key in data for key in ['type', 'title', 'data']):
@@ -491,6 +498,7 @@ IMPORTANT:
             return json.dumps({"error": f"Data extraction failed: {str(e)}"})
 
 class ChartWorkerThread(QThread):
+    """Background worker that returns validated chart JSON for rendering."""
     finished = Signal(str, str)
     error = Signal(str)
     
@@ -512,6 +520,7 @@ class ChartWorkerThread(QThread):
             self.error.emit(str(e))
 
 class ExplainerWorkerThread(QThread):
+    """Run explainer generation off-thread and emit node placement info."""
     finished = Signal(str, QPointF)
     error = Signal(str)
     
@@ -539,6 +548,7 @@ class ExplainerWorkerThread(QThread):
         self._is_running = False
 
 class ModelPullWorkerThread(QThread):
+    """Ensure an Ollama model is locally available without blocking the UI."""
     status_update = Signal(str)
     finished = Signal(str, str)
     error = Signal(str)
