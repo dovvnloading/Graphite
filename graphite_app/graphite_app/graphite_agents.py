@@ -346,6 +346,87 @@ IMPORTANT:
             
         return text
 
+    def _normalize_numeric_list(self, values):
+        """Convert model-produced values into a clean float list."""
+        if not isinstance(values, list):
+            raise ValueError("Values must be a list")
+        normalized = []
+        for index, value in enumerate(values):
+            try:
+                normalized.append(float(value))
+            except (TypeError, ValueError):
+                raise ValueError(f"Value at index {index} is not numeric")
+        return normalized
+
+    def normalize_chart_payload(self, data, chart_type):
+        """Coerce near-valid model output into a strict chart schema."""
+        normalized = dict(data)
+        normalized['type'] = chart_type
+
+        if 'title' not in normalized or not str(normalized['title']).strip():
+            normalized['title'] = f"{chart_type.title()} Chart"
+
+        if chart_type in ['bar', 'line', 'pie', 'histogram']:
+            normalized['values'] = self._normalize_numeric_list(normalized.get('values', []))
+
+        if chart_type in ['bar', 'line', 'pie']:
+            labels = normalized.get('labels', [])
+            if not isinstance(labels, list):
+                labels = []
+
+            # Keep payload renderable even when the model returns fewer labels.
+            if len(labels) < len(normalized['values']):
+                labels = labels + [f"Item {i + 1}" for i in range(len(labels), len(normalized['values']))]
+            elif len(labels) > len(normalized['values']):
+                labels = labels[:len(normalized['values'])]
+
+            normalized['labels'] = [str(label) for label in labels]
+
+        if chart_type == 'histogram':
+            bins = normalized.get('bins', 10)
+            try:
+                bins = int(float(bins))
+            except (TypeError, ValueError):
+                bins = 10
+            normalized['bins'] = max(1, bins)
+
+        if chart_type == 'sankey':
+            sankey_data = normalized.get('data', {})
+            if not isinstance(sankey_data, dict):
+                sankey_data = {}
+
+            nodes = sankey_data.get('nodes', [])
+            links = sankey_data.get('links', [])
+            if not isinstance(nodes, list):
+                nodes = []
+            if not isinstance(links, list):
+                links = []
+
+            clean_nodes = []
+            for i, node in enumerate(nodes):
+                name = node.get('name') if isinstance(node, dict) else None
+                clean_nodes.append({'name': str(name) if name else f'Node {i + 1}'})
+
+            clean_links = []
+            for link in links:
+                if not isinstance(link, dict):
+                    continue
+                try:
+                    source = int(link.get('source'))
+                    target = int(link.get('target'))
+                    value = float(link.get('value'))
+                except (TypeError, ValueError):
+                    continue
+                clean_links.append({'source': source, 'target': target, 'value': value})
+
+            normalized['data'] = {'nodes': clean_nodes, 'links': clean_links}
+
+        if chart_type in ['bar', 'line', 'histogram']:
+            normalized['xAxis'] = str(normalized.get('xAxis', 'X Axis'))
+            normalized['yAxis'] = str(normalized.get('yAxis', 'Y Axis'))
+
+        return normalized
+
     def validate_chart_data(self, data, chart_type):
         """Validate chart payload shape and value constraints by chart type."""
         try:
@@ -478,7 +559,8 @@ IMPORTANT:
             except json.JSONDecodeError:
                 return json.dumps({"error": "Invalid JSON response from model"})
             
-            # Validate data
+            # Normalize and validate data
+            data = self.normalize_chart_payload(data, chart_type)
             is_valid, error_message = self.validate_chart_data(data, chart_type)
             if not is_valid:
                 return json.dumps({"error": error_message})
