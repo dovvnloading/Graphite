@@ -36,20 +36,6 @@ OPENAI_COMPAT_MODELS_STATIC = sorted([
     "gpt-4.1-nano",
     "gpt-4o",
     "gpt-4o-mini",
-    "claude-opus-4-6",
-    "claude-sonnet-4-6",
-    "claude-sonnet-4-5",
-    "claude-haiku-4-5",
-    "claude-opus-4-5",
-    "claude-opus-4-1",
-    "claude-opus-4",
-    "claude-sonnet-4",
-    "claude-3-7-sonnet",
-    "claude-3-5-sonnet",
-    "claude-3-5-haiku",
-    "claude-3-opus",
-    "claude-3-sonnet",
-    "claude-3-haiku",
 ])
 
 
