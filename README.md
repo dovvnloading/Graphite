@@ -1,13 +1,19 @@
+
 # Graphite: A Visual Node-Based LLM Interface
 
 ![License](https://img.shields.io/badge/License-MIT-green.svg) ![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg) ![Framework](https://img.shields.io/badge/Framework-PySide6-blue.svg) ![GitHub stars](https://img.shields.io/github/stars/dovvnloading/Graphite?style=social) ![GitHub forks](https://img.shields.io/github/forks/dovvnloading/Graphite?style=social)
 
 <p align="center">
   <img width="1920" height="1032" alt="Screenshot 2025-10-26 101411" src="https://github.com/user-attachments/assets/9aaad762-a03e-40c7-b2be-4e962c97d6e6" />
-
 </p>
 
-Graphite is an advanced desktop environment for human–AI collaboration. It transforms ordinary chat into a visual reasoning space, where ideas branch, connect, and evolve. Built with Python and PySide6, it seamlessly integrates Ollama, OpenAI, Gemini, Anthropic, and Groq models—offering a secure, local-first, and deeply intuitive workspace for research, creation, and thought.
+Graphite is an advanced desktop environment for human–AI collaboration. It transforms traditional chat into a visual reasoning workspace where ideas branch, connect, and evolve.
+
+Built with Python and PySide6, Graphite integrates Ollama, OpenAI, Gemini, Anthropic, and Groq models to provide a secure, local-first environment designed for research, creative exploration, and structured reasoning.
+
+---
+
+Big news at bottom of repo
 
 ---
 
@@ -25,29 +31,31 @@ Graphite is an advanced desktop environment for human–AI collaboration. It tra
 
 ## Overview
 
-Traditional chatbot interfaces confine conversations to a single, chronological timeline. This linear format stifles creativity and makes it difficult to revisit, branch, or organize complex lines of thought.
+Traditional chatbot interfaces confine conversations to a single chronological timeline. While convenient, this format makes it difficult to revisit ideas, branch alternative reasoning paths, or organize complex lines of thought.
 
-Graphite solves this by treating every conversation as an interactive mind-map on an infinite canvas. Each prompt and response becomes a distinct node, visually connected to form a branching graph of your entire dialogue. This unique approach allows you to trace the evolution of ideas, explore multiple paths from any point in the conversation, and build a rich, interconnected knowledge base—all while ensuring your data remains completely private on your local machine.
+Graphite addresses this limitation by transforming conversation into a visual graph structure on an infinite canvas. Each prompt and response becomes a distinct node, visually connected to represent the evolving structure of the dialogue.
+
+This approach allows users to trace how ideas develop, branch conversations from any point, explore alternative reasoning paths, and build an interconnected knowledge workspace while keeping all data fully private on the local machine.
 
 ## Key Features
 
-- **Node-Based Visual Interface:** Move beyond linear text logs. Every interaction is a movable, selectable node on an infinite canvas.
-- **Non-Linear Conversation Flow:** Branch your conversation from any previous node to explore alternative ideas without losing context.
-- **Local and Private LLM Integration:** Powered by **Ollama**, all AI processing happens locally. Your conversations are never sent to the cloud, ensuring 100% privacy.
-- **Flexible Model Selection:** Choose from a list of popular preset models or specify any custom model compatible with Ollama. The application validates and ensures the model is available locally before use.
+- **Node-Based Visual Interface:** Move beyond linear text logs. Every interaction appears as a draggable, selectable node on an infinite canvas.
+- **Non-Linear Conversation Flow:** Branch conversations from any existing node to explore alternate ideas without disrupting the original thread.
+- **Local and Private LLM Integration:** Powered by **Ollama**, AI processing can occur entirely locally. Conversations never leave your machine, ensuring complete privacy.
+- **Flexible Model Selection:** Choose from preset models or specify any model compatible with Ollama. The application verifies model availability locally before use.
 - **Rich Organizational Tools:**
-    - **Frames:** Group related nodes into logical clusters with customizable titles and colors.
-    - **Notes:** Add persistent, editable sticky notes to the canvas for annotations and reminders.
-    - **Navigation Pins:** Drop pins on important nodes and access them instantly from a dedicated overlay, creating a table of contents for your canvas.
+  - **Frames:** Group nodes into labeled clusters with customizable titles and colors.
+  - **Notes:** Add persistent sticky notes to annotate ideas or capture reminders.
+  - **Navigation Pins:** Mark important nodes and access them instantly through a navigation overlay.
 - **AI-Powered Content Generation:**
-    - **Chart Generation:** Ask the AI to summarize data and generate `matplotlib` charts (Bar, Line, Pie, Histogram, and Sankey) directly on the canvas.
-    - **Key Takeaways & Explainers:** Right-click any node to generate a concise summary or a simplified explanation, which appear as new, formatted notes.
-- **Advanced View and Canvas Controls:**
-    - **Infinite Canvas:** Pan and zoom freely across a vast workspace.
-    - **Custom UI Controls:** Fine-tune grid snapping, panning speed, and zoom levels.
+  - **Chart Generation:** Ask the AI to summarize data and generate `matplotlib` charts (Bar, Line, Pie, Histogram, and Sankey) directly on the canvas.
+  - **Key Takeaways & Explainers:** Right-click any node to generate summaries or simplified explanations that appear as formatted notes.
+- **Advanced Canvas Controls:**
+  - **Infinite Canvas:** Pan and zoom across a virtually unlimited workspace.
+  - **Custom UI Controls:** Adjust grid snapping, panning speed, zoom levels, and other interaction parameters.
 - **Comprehensive Session Management:**
-    - **Chat Library:** Save, load, rename, and manage all your conversation canvases.
-    - **Secure Local Database:** All sessions, including nodes, frames, notes, and pins, are stored securely in a local SQLite database.
+  - **Chat Library:** Save, load, rename, and manage multiple conversation canvases.
+  - **Secure Local Database:** All sessions—including nodes, frames, notes, and pins—are stored locally in a SQLite database.
 
 ## Gallery
 
@@ -62,8 +70,7 @@ Graphite solves this by treating every conversation as an interactive mind-map o
   </tr>
   <tr>
     <td><img src="https://github.com/user-attachments/assets/83e79a1c-879e-4f8f-9a61-10b4f2572127" alt="Chat Library"></td>
-    <td><img width="1918" height="1029" alt="Screenshot 2025-10-26 122645" src="https://github.com/user-attachments/assets/f6be870b-3557-4562-84ac-04fe6f1c61f9" />
-</td>
+    <td><img width="1918" height="1029" alt="Screenshot 2025-10-26 122645" src="https://github.com/user-attachments/assets/f6be870b-3557-4562-84ac-04fe6f1c61f9" /></td>
   </tr>
   <tr>
     <td><img src="https://github.com/user-attachments/assets/30290b4f-7fa1-4ecc-8441-af2fc2d50b73" alt="New UI screenshot 1" /></td>
@@ -71,87 +78,90 @@ Graphite solves this by treating every conversation as an interactive mind-map o
   </tr>
 </table>
 
-
-
 ---
 
 ## Technical Architecture
 
-Graphite is built on a modern, modular architecture designed for maintainability and scalability. The application is written in Python 3 and leverages the PySide6 framework for its cross-platform graphical user interface. The core principle is a clear separation of concerns, decoupling the UI, core logic, and AI services.
+Graphite is built on a modular architecture designed for maintainability and scalability. The application is written in Python 3 and leverages the PySide6 framework to provide a cross-platform graphical interface. The architecture emphasizes a clear separation of concerns between UI components, core application logic, and AI services.
 
-The project is organized into the following key modules:
+The project is organized into several primary modules:
 
--   **`graphite_app.py`**: The main application entry point. It contains the primary `ChatWindow` class, which orchestrates the entire application, assembling the UI, initializing backend services, and handling main event loops.
+- **`graphite_app.py`**: The main application entry point. It contains the primary `ChatWindow` class responsible for assembling the UI, initializing backend services, and managing the main event loop.
 
--   **`graphite_ui.py`**: The complete User Interface layer. This module contains all Qt-based components, from the main window's structure to custom dialogs (`APISettingsDialog`, `ChatLibraryDialog`). It also defines all custom-rendered `QGraphicsItem` subclasses that make up the interactive canvas, including `ChatNode`, `ConnectionItem`, `Frame`, `Note`, and `ChartItem`.
+- **`graphite_ui.py`**: The full user interface layer. This module defines all Qt-based components, including dialogs (`APISettingsDialog`, `ChatLibraryDialog`) and custom-rendered `QGraphicsItem` objects that power the interactive canvas, such as `ChatNode`, `ConnectionItem`, `Frame`, `Note`, and `ChartItem`.
 
--   **`graphite_core.py`**: The application's central nervous system, managing state and data persistence.
-    *   The `ChatSessionManager` handles the complex logic of serializing the entire scene graph (nodes, connections, frames, etc.) into a JSON format and deserializing it back into a live session.
-    *   The `ChatDatabase` class provides an interface to the local SQLite database, managing the storage and retrieval of saved chat sessions.
+- **`graphite_core.py`**: The application's central state management and persistence layer.
+  - `ChatSessionManager` serializes the canvas scene graph (nodes, connections, frames, etc.) into JSON and reconstructs sessions from stored data.
+  - `ChatDatabase` manages the local SQLite database used to store and retrieve saved chat sessions.
 
--   **`graphite_agents.py`**: This module isolates all logic related to AI-powered tasks. It contains the base `ChatAgent` for conversations and specialized "tool" agents like `KeyTakeawayAgent`, `ExplainerAgent`, and `ChartDataAgent`. Each agent runs its network requests within a dedicated `QThread` worker to ensure the UI remains responsive.
+- **`graphite_agents.py`**: Contains the logic for AI-driven tasks. Agents include the base `ChatAgent` along with specialized agents such as `KeyTakeawayAgent`, `ExplainerAgent`, and `ChartDataAgent`. Each agent performs network operations within a dedicated `QThread` worker to ensure the interface remains responsive.
 
--   **`api_provider.py`**: A crucial abstraction layer that unifies communication with different AI model providers. It acts as a router, directing requests to either a local Ollama instance or any OpenAI-compatible remote API based on the user's configuration. This module makes the core application agnostic to the underlying LLM service.
+- **`api_provider.py`**: An abstraction layer responsible for routing requests to the appropriate model provider. It supports both local Ollama instances and OpenAI-compatible remote APIs, allowing the application to remain independent of specific providers.
 
--   **`graphite_config.py`**: A centralized file for storing global configuration constants. It defines abstract task identifiers (e.g., `TASK_CHAT`, `TASK_CHART`) and default model names, providing a single source of truth for application-wide settings.
+- **`graphite_config.py`**: Centralized configuration file containing global constants, task identifiers (`TASK_CHAT`, `TASK_CHART`), and default model names.
 
-  
 ## Technology Stack
 
--   **Language:** Python 3.8+
--   **UI Framework:** PySide6
--   **Local LLM Interface:** Ollama
--   **Charting Library:** Matplotlib
--   **Database:** SQLite
--   **Icons:** QtAwesome (FontAwesome)
+- **Language:** Python 3.8+
+- **UI Framework:** PySide6
+- **Local LLM Interface:** Ollama
+- **Charting Library:** Matplotlib
+- **Database:** SQLite
+- **Icons:** QtAwesome (FontAwesome)
 
 ## Installation and Setup
 
-Follow these steps to get Graphite running on your local machine.
+Follow these steps to run Graphite locally.
 
 ### 1. Prerequisites
 
--   **Python:** Ensure you have Python 3.8 or newer installed.
--   **Ollama:** You must have **[Ollama](https://ollama.com/)** installed and running.
+- **Python:** Python 3.8 or newer
+- **Ollama:** Installed and running — https://ollama.com
 
 ### 2. Install an LLM Model
 
-Before running Graphite, you need to pull a model for Ollama to use. The default is `qwen2.5:7b-instruct`. Open your terminal and run:
+Pull the default model used by the application:
 
 ```bash
 ollama pull qwen2.5:7b-instruct
-```
+````
 
-You can use the in-app Model Selection dialog to choose and validate other models. Ensure the Ollama application is running in the background.
+Additional models can be configured inside the application using the model selection dialog.
 
 ### 3. Clone and Install Dependencies
 
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/dovvnloading/Graphite.git
-    cd Graphite
-    ```
+Clone the repository:
 
-2.  **Create and activate a virtual environment (recommended):**
-    ```bash
-    # For Windows
-    python -m venv venv
-    .\venv\Scripts\activate
+```bash
+git clone https://github.com/dovvnloading/Graphite.git
+cd Graphite
+```
 
-    # For macOS/Linux
-    python3 -m venv venv
-    source venv/bin/activate
-    ```
+Create a virtual environment (recommended):
 
-3.  **Install the required Python packages:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-    *(If a `requirements.txt` is not available, install manually: `pip install PySide6 ollama matplotlib qtawesome`)*
+```bash
+# Windows
+python -m venv venv
+.\venv\Scripts\activate
+
+# macOS/Linux
+python3 -m venv venv
+source venv/bin/activate
+```
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+If no `requirements.txt` is available:
+
+```bash
+pip install PySide6 ollama matplotlib qtawesome
+```
 
 ### 4. Run the Application
-
-Once the setup is complete, launch the application by running:
 
 ```bash
 python graphite_app.py
@@ -159,35 +169,62 @@ python graphite_app.py
 
 ## Usage
 
--   **Sending Messages:** Type your message in the input box at the bottom and press Enter or click the send button. A new user node will appear, followed by a connected AI response node.
--   **Setting Context:** To branch the conversation, simply click on any previous node. The input box will indicate it's your new context. Your next message will create a new branch from that selected node.
--   **Interacting with Nodes:**
-    -   **Move:** Click and drag any node to reposition it.
-    -   **Select:** Click a node to select it, or drag a selection box to select multiple nodes.
-    -   **Context Menu:** Right-click a node to access options like copying text, generating takeaways, creating charts, or deleting the node.
--   **Keyboard Shortcuts:**
-    -   `Ctrl + F`: Create a Frame around selected nodes.
-    -   `Ctrl + N`: Create a new Note at the cursor's position.
-    -   `Delete`: Delete any selected item (node, frame, note, etc.).
-    -   `Ctrl + S`: Save the current chat session.
-    -   `Ctrl + L`: Open the Chat Library.
+* **Sending Messages:** Enter a prompt in the input box and press Enter to create a new node followed by the AI response.
+* **Branching Conversations:** Select any existing node to use it as the context for a new branch.
+* **Node Interaction**
+
+  * **Move:** Drag nodes to reposition them.
+  * **Select:** Click to select or drag to select multiple nodes.
+  * **Context Menu:** Right-click nodes for actions such as copying text, generating summaries, creating charts, or deleting nodes.
+
+### Keyboard Shortcuts
+
+* `Ctrl + F` — Create a Frame around selected nodes
+* `Ctrl + N` — Create a Note at the cursor position
+* `Delete` — Delete selected items
+* `Ctrl + S` — Save the current chat session
+* `Ctrl + L` — Open the Chat Library
 
 ---
-(resolved) Known issues: The graph generation is often brittle and not very stable. Note: Larger models do handle chart data far better than smaller models however the system requirements to use the larger models is significantly more demanding. Using coding models does improve the chart accuracy.  
+
+Known issue: Graph generation can sometimes be unstable. Larger models generally produce better chart data but require significantly greater system resources. Using coding-oriented models may improve chart accuracy.
+
 ---
 
 ## Contributing
 
-Contributions are welcome! If you'd like to contribute, please follow these steps:
+Contributions are welcome.
 
-1.  Fork the repository.
-2.  Create a new branch for your feature or bug fix (`git checkout -b feature/your-feature-name`).
-3.  Make your changes and commit them with clear, descriptive messages.
-4.  Push your changes to your forked repository.
-5.  Create a pull request, detailing the changes you made and why.
+1. Fork the repository.
+2. Create a branch for your feature or bug fix (`git checkout -b feature/your-feature-name`).
+3. Commit your changes with clear and descriptive messages.
+4. Push your branch to your forked repository.
+5. Open a pull request describing the changes and rationale.
 
-Please open an issue first to discuss any major changes or new features.
+For major changes, please open an issue first to discuss the proposed modification.
 
 ## License
 
-This project is licensed under the **MIT License**. See the `LICENSE` file for more details.
+This project is licensed under the **MIT License**. See the `LICENSE` file for details.
+
+---
+
+---
+
+---
+Updated - 3 / 28 / 2026
+
+# Graphlink — formerly Graphite
+
+**Graphite 2 has arrived under a new name: Graphlink.**
+
+The name *Graphite* has become saturated across multiple unrelated projects, creating confusion and potential legal complications. To ensure the project remains clearly identifiable moving forward, **Graphite is now considered a legacy name**, and development will continue under the new name **Graphlink**.
+
+Graphlink represents the next stage of the original system, expanding the tooling, architecture, and capabilities introduced in Graphite v1.
+
+Repository:
+[https://github.com/dovvnloading/Graphlink](https://github.com/dovvnloading/Graphlink)
+
+![Graphlink Preview](https://github.com/user-attachments/assets/8eb57222-e9ca-4f2c-8b51-50e84ae99fa0)
+
+
