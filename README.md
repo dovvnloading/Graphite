@@ -1,6 +1,20 @@
+
+
+---
+---
+---
+---
+
 **Graphite 2 is here! (formerly Graphite)** - https://github.com/dovvnloading/Graphlink
 
 ---
+---
+---
+---
+
+
+
+
 
 # Graphite: A Visual Node-Based LLM Interface
 
