@@ -3,7 +3,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QToolBar,
     QToolButton, QLineEdit, QPushButton, QMessageBox, QSizePolicy, QLabel, QComboBox
 )
-from PySide6.QtCore import Qt, QSize, QPointF
+from PySide6.QtCore import Qt, QSize, QPointF, QTimer
 from PySide6.QtGui import QKeySequence, QGuiApplication, QCursor, QShortcut
 import qtawesome as qta
 import json
@@ -228,10 +228,14 @@ class ChatWindow(QMainWindow):
 
     def confirm_session_transition(self):
         """Protect unsaved work before loading, clearing, or closing a session."""
-        if getattr(self, 'chat_thread', None) is not None and self.chat_thread.isRunning():
-            QMessageBox.warning(self, "Chat in Progress",
-                                "Finish the current AI response before switching or closing chats.")
-            return False
+        for worker_name in ('chat_thread', 'takeaway_thread', 'explainer_thread', 'chart_thread'):
+            worker = getattr(self, worker_name, None)
+            if worker is not None and worker.isRunning():
+                QMessageBox.warning(
+                    self, "Generation in Progress",
+                    "Finish the current AI task before switching or closing chats."
+                )
+                return False
         if not self.session_manager.has_unsaved_changes():
             return True
         choice = QMessageBox.question(
@@ -383,6 +387,27 @@ class ChatWindow(QMainWindow):
         help_dialog.move(center.x() - help_dialog.width() // 2,
                         center.y() - help_dialog.height() // 2)
         help_dialog.show()
+
+    def verify_default_models(self):
+        """Help first-time local users install every required Ollama task model."""
+        if api_provider.get_mode() != "Ollama":
+            return
+        try:
+            missing = api_provider.get_missing_ollama_models()
+        except Exception as exc:
+            QMessageBox.warning(
+                self, "Ollama Unavailable",
+                "Graphite could not verify local models. Start Ollama and check "
+                f"your connection. Details: {exc}"
+            )
+            return
+        if missing:
+            commands = "\\n".join(f"ollama pull {model}" for model in missing)
+            QMessageBox.warning(
+                self, "Missing Ollama Models",
+                "Some local Graphite features need additional models. "
+                "Run these commands in a terminal:\\n\\n" + commands
+            )
 
     def show_settings(self):
         """Show the appropriate settings dialog based on the current mode."""
@@ -689,6 +714,7 @@ def main():
     app = QApplication(sys.argv)
     window = ChatWindow()
     window.show()
+    QTimer.singleShot(0, window.verify_default_models)
     sys.exit(app.exec())
 
 if __name__ == "__main__":
