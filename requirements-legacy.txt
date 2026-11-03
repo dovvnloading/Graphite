@@ -1,0 +1,5 @@
+# Only for the archived Graphite.py (PyQt5) implementation.
+PyQt5
+ollama
+matplotlib
+qtawesome
