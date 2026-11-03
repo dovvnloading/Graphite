@@ -215,9 +215,42 @@ class ChatWindow(QMainWindow):
             super().keyPressEvent(event)
         
     def save_chat(self):
-        """Save the current chat session"""
-        self.session_manager.save_current_chat()
-        QMessageBox.information(self, "Success", "Chat saved successfully!")
+        """Save the session and report the actual result."""
+        try:
+            saved = self.session_manager.save_current_chat()
+        except Exception as exc:
+            QMessageBox.critical(self, "Save Failed", str(exc))
+            return
+        if saved:
+            QMessageBox.information(self, "Success", "Chat saved successfully!")
+        else:
+            QMessageBox.information(self, "Nothing to Save", "The canvas is empty.")
+
+    def confirm_session_transition(self):
+        """Protect unsaved work before loading, clearing, or closing a session."""
+        if getattr(self, 'chat_thread', None) is not None and self.chat_thread.isRunning():
+            QMessageBox.warning(self, "Chat in Progress",
+                                "Finish the current AI response before switching or closing chats.")
+            return False
+        if not self.session_manager.has_unsaved_changes():
+            return True
+        choice = QMessageBox.question(
+            self, "Unsaved Changes",
+            "Save your changes before leaving this chat?",
+            QMessageBox.StandardButton.Save |
+            QMessageBox.StandardButton.Discard |
+            QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Save
+        )
+        if choice == QMessageBox.StandardButton.Cancel:
+            return False
+        if choice == QMessageBox.StandardButton.Discard:
+            return True
+        try:
+            return self.session_manager.save_current_chat()
+        except Exception as exc:
+            QMessageBox.critical(self, "Save Failed", str(exc))
+            return False
 
     def setup_toolbar(self, toolbar):
         """Setup toolbar with modern QToolButtons"""
@@ -372,7 +405,18 @@ class ChatWindow(QMainWindow):
     def setCurrentNode(self, node):
         self.current_node = node
         self.message_input.setPlaceholderText(f"Responding to: {node.text[:30]}...")
-        
+
+    def build_conversation_history(self, node):
+        """Read only the selected node's ancestor chain, oldest first."""
+        turns = []
+        while node is not None:
+            turns.append({
+                'role': 'user' if node.is_user else 'assistant',
+                'content': node.text
+            })
+            node = node.parent_node
+        return list(reversed(turns))
+
     def send_message(self):
         message = self.message_input.text().strip()
         if not message:
@@ -385,15 +429,9 @@ class ChatWindow(QMainWindow):
         # Show loading overlay
         self.loading_overlay.show()
         
-        # Get conversation history up to current node
-        history = []
-        if self.current_node:
-            temp_node = self.current_node
-            while temp_node:
-                if hasattr(temp_node, 'conversation_history'):
-                    history = temp_node.conversation_history + history
-                temp_node = temp_node.parent_node
-        
+        # Ancestor nodes are the source of truth, not cumulative node histories.
+        history = self.build_conversation_history(self.current_node)
+
         # Add user message node
         user_node = self.chat_view.scene().add_chat_node(
             message, 
@@ -424,7 +462,7 @@ class ChatWindow(QMainWindow):
             response,
             is_user=False,
             parent_node=user_node,
-            conversation_history=self.agent.conversation_history + [
+            conversation_history=user_node.conversation_history + [
                 {'role': 'assistant', 'content': response}
             ]
         )
@@ -639,12 +677,13 @@ class ChatWindow(QMainWindow):
             self.chart_thread.wait()
 
     def closeEvent(self, event):
-        """
-        Overrides the default close event to ensure all background threads
-        are properly terminated before the application exits.
-        """
+        """Save or explicitly discard canvas edits before closing."""
+        if not self.confirm_session_transition():
+            event.ignore()
+            return
         self.stop_all_workers()
         super().closeEvent(event)
+
 
 def main():
     app = QApplication(sys.argv)
