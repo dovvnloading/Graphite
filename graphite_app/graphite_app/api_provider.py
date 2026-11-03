@@ -175,6 +175,21 @@ def get_available_models():
     except Exception as e:
         raise RuntimeError(f"Failed to fetch models from endpoint: {str(e)}")
 
+def get_missing_ollama_models():
+    """Check all configured local task models without triggering downloads."""
+    response = ollama.Client(timeout=2.0).list()
+    installed = response.get('models', []) if isinstance(response, dict) else response.models
+    available = set()
+    for item in installed:
+        if isinstance(item, dict):
+            name = item.get('model') or item.get('name')
+        else:
+            name = getattr(item, 'model', None) or getattr(item, 'name', None)
+        if name:
+            available.add(name)
+    return sorted(set(config.OLLAMA_MODELS.values()) - available)
+
+
 def set_mode(use_api: bool):
     global USE_API_MODE
     USE_API_MODE = use_api

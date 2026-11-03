@@ -18,44 +18,41 @@ class ChatWorkerThread(QThread):
     def run(self):
         try:
             # Use agent's get_response directly
-            response = self.agent.get_response(self.message)
+            response = self.agent.get_response(self.message, self.conversation_history)
             self.finished.emit(response)
         except Exception as e:
             self.error.emit(str(e))
 
 class ChatWorker:
-    """Compose chat messages and call the configured provider synchronously."""
+    """Compose chat messages for one branch and call the configured provider."""
     def __init__(self, system_prompt, conversation_history):
         self.system_prompt = system_prompt
-        self.conversation_history = conversation_history
-        
+        self.conversation_history = list(conversation_history)
+
     def run(self, user_message):
-        try:
-            messages = [
-                {'role': 'system', 'content': self.system_prompt},
-                *self.conversation_history,
-                {'role': 'user', 'content': user_message}
-            ]
-            response = api_provider.chat(task=config.TASK_CHAT, messages=messages)
-            ai_message = response['message']['content']
-            return ai_message
-        except Exception as e:
-            return f"Error: {str(e)}"
+        # A node's history already ends with the new user message. Do not
+        # append it twice; also support callers that provide ancestor history.
+        messages = [
+            {'role': 'system', 'content': self.system_prompt},
+            *self.conversation_history
+        ]
+        user_turn = {'role': 'user', 'content': user_message}
+        if not self.conversation_history or self.conversation_history[-1] != user_turn:
+            messages.append(user_turn)
+        response = api_provider.chat(task=config.TASK_CHAT, messages=messages)
+        return response['message']['content']
+
 
 class ChatAgent:
-    """Stateful assistant that tracks conversation history per node/session."""
+    """Stateless assistant: all context comes from the requested graph branch."""
     def __init__(self, name, persona):
         self.name = name or "AI Assistant"
         self.persona = persona or "(default persona)"
         self.system_prompt = f"You are {self.name}. {self.persona}"
-        self.conversation_history = []
-        
-    def get_response(self, user_message):
-        chat_worker = ChatWorker(self.system_prompt, self.conversation_history)
-        ai_response = chat_worker.run(user_message)
-        self.conversation_history.append({'role': 'user', 'content': user_message})
-        self.conversation_history.append({'role': 'assistant', 'content': ai_response})
-        return ai_response
+
+    def get_response(self, user_message, conversation_history=None):
+        worker = ChatWorker(self.system_prompt, conversation_history or [])
+        return worker.run(user_message)
 
 class ExplainerAgent:
     """Generate plain-language explanations and normalize the output format."""

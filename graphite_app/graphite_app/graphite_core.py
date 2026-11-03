@@ -181,6 +181,50 @@ class ChatDatabase:
                 })
             return notes
             
+    def save_snapshot(self, title, chat_data, notes_data, pins_data, chat_id=None):
+        """Atomically save a canvas and its associated notes/navigation pins."""
+        with self._connect() as conn:
+            payload = json.dumps(chat_data)
+            if chat_id is None:
+                cursor = conn.execute(
+                    "INSERT INTO chats (title, data, updated_at) "
+                    "VALUES (?, ?, CURRENT_TIMESTAMP)", (title, payload)
+                )
+                chat_id = cursor.lastrowid
+            else:
+                cursor = conn.execute(
+                    "UPDATE chats SET title = ?, data = ?, "
+                    "updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (title, payload, chat_id)
+                )
+                if cursor.rowcount == 0:
+                    raise ValueError(f"Chat {chat_id} no longer exists")
+
+            conn.execute("DELETE FROM notes WHERE chat_id = ?", (chat_id,))
+            for note in notes_data:
+                conn.execute(
+                    "INSERT INTO notes (chat_id, content, position_x, position_y, "
+                    "width, height, color, header_color) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        chat_id, note['content'], note['position']['x'],
+                        note['position']['y'], note['size']['width'],
+                        note['size']['height'], note['color'],
+                        note.get('header_color')
+                    )
+                )
+
+            conn.execute("DELETE FROM pins WHERE chat_id = ?", (chat_id,))
+            for pin in pins_data:
+                conn.execute(
+                    "INSERT INTO pins (chat_id, title, note, position_x, position_y) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (
+                        chat_id, pin['title'], pin['note'],
+                        pin['position']['x'], pin['position']['y']
+                    )
+                )
+        return chat_id
+
     def save_chat(self, title, chat_data):
         """Persist a new chat snapshot and return the inserted row id."""
         with self._connect() as conn:
@@ -253,6 +297,7 @@ class ChatSessionManager:
         self.db = ChatDatabase()
         self.title_generator = TitleGenerator()
         self.current_chat_id = None
+        self._saved_snapshot = self.capture_current_snapshot()
         
     def serialize_pin(self, pin):
         """Convert a navigation pin to a serializable dictionary"""
@@ -319,49 +364,72 @@ class ChatSessionManager:
             'size': {'width': chart.width, 'height': chart.height}
         }
 
-    def serialize_current_chat(self):
-        """Serialize the current chat session with all elements"""
+    def capture_current_snapshot(self):
+        """Capture canvas, notes and pins without writing to the database."""
         scene = self.window.chat_view.scene()
-    
-        # Get all notes, pins, and charts in the scene
         notes = [item for item in scene.items() if isinstance(item, Note)]
         pins = [item for item in scene.items() if isinstance(item, NavigationPin)]
         charts = [item for item in scene.items() if isinstance(item, ChartItem)]
-    
-        chat_data = {
-            'nodes': [self.serialize_node(node) for node in scene.nodes],
-            'connections': [self.serialize_connection(conn) for conn in scene.connections],
-            'frames': [self.serialize_frame(frame) for frame in scene.frames],
-            'charts': [self.serialize_chart(chart) for chart in charts],  # Add charts
-            'view_state': {
-                'zoom_factor': self.window.chat_view._zoom_factor,
-                'scroll_position': {
-                    'x': self.window.chat_view.horizontalScrollBar().value(),
-                    'y': self.window.chat_view.verticalScrollBar().value()
+        return {
+            'chat_data': {
+                'nodes': [self.serialize_node(node) for node in scene.nodes],
+                'connections': [self.serialize_connection(conn) for conn in scene.connections],
+                'frames': [self.serialize_frame(frame) for frame in scene.frames],
+                'charts': [self.serialize_chart(chart) for chart in charts],
+                'view_state': {
+                    'zoom_factor': self.window.chat_view._zoom_factor,
+                    'scroll_position': {
+                        'x': self.window.chat_view.horizontalScrollBar().value(),
+                        'y': self.window.chat_view.verticalScrollBar().value()
+                    }
                 }
-            }
+            },
+            'notes_data': [self.serialize_note(note) for note in notes],
+            'pins_data': [self.serialize_pin(pin) for pin in pins]
         }
-    
-        # Save chat data first
-        if not self.current_chat_id:
-            last_message = scene.nodes[-1].text if scene.nodes else "New Chat"
+
+    @staticmethod
+    def _has_content(snapshot):
+        scene_data = snapshot['chat_data']
+        return bool(
+            any(scene_data[key] for key in ('nodes', 'connections', 'frames', 'charts'))
+            or snapshot['notes_data'] or snapshot['pins_data']
+        )
+
+    def has_unsaved_changes(self):
+        current = self.capture_current_snapshot()
+        if self.current_chat_id is None and not self._has_content(current):
+            return False
+        return current != self._saved_snapshot
+
+    def mark_current_state_saved(self):
+        """Record a clean baseline after a new session or successful load."""
+        self._saved_snapshot = self.capture_current_snapshot()
+
+    def serialize_current_chat(self):
+        """Persist a complete scene in one database transaction."""
+        snapshot = self.capture_current_snapshot()
+        if self.current_chat_id is None and not self._has_content(snapshot):
+            return None
+
+        chat_data = snapshot['chat_data']
+        if self.current_chat_id is None:
+            last_message = chat_data['nodes'][-1]['text'] if chat_data['nodes'] else "New Chat"
             title = self.title_generator.generate_title(last_message)
-            self.current_chat_id = self.db.save_chat(title, chat_data)
         else:
-            chat = self.db.load_chat(self.current_chat_id)
-            if chat:
-                title = chat['title']
-                self.db.update_chat(self.current_chat_id, title, chat_data)
-            
-        # Now save notes and pins separately
-        if self.current_chat_id:
-            notes_data = [self.serialize_note(note) for note in notes]
-            self.db.save_notes(self.current_chat_id, notes_data)
-            
-            pins_data = [self.serialize_pin(pin) for pin in pins]
-            self.db.save_pins(self.current_chat_id, pins_data)
-        
+            saved_chat = self.db.load_chat(self.current_chat_id)
+            if not saved_chat:
+                raise ValueError("The active chat has been deleted from the database")
+            title = saved_chat['title']
+
+        saved_id = self.db.save_snapshot(
+            title, chat_data, snapshot['notes_data'], snapshot['pins_data'],
+            self.current_chat_id
+        )
+        self.current_chat_id = saved_id
+        self._saved_snapshot = snapshot
         return chat_data
+
 
     def deserialize_chart(self, data, scene):
         """Recreate a chart from serialized data"""
@@ -593,6 +661,7 @@ class ChatSessionManager:
             # Set current chat ID and update connections
             self.current_chat_id = chat_id
             scene.update_connections()
+            self.mark_current_state_saved()
 
         except Exception as e:
             print(f"Error loading chat: {str(e)}")
@@ -604,18 +673,13 @@ class ChatSessionManager:
             scene.pins.clear()
             if self.window and hasattr(self.window, 'pin_overlay'):
                 self.window.pin_overlay.clear_pins()
+            self.current_chat_id = None
+            self.mark_current_state_saved()
             raise
 
         # Return loaded chat data
         return chat
         
     def save_current_chat(self):
-        """Save the current chat session"""
-        if not self.window.chat_view.scene().nodes:
-            return
-            
-        try:
-            self.serialize_current_chat()
-        except Exception as e:
-            print(f"Error saving chat: {str(e)}")
-            raise
+        """Save the current canvas, even if it contains only notes or pins."""
+        return self.serialize_current_chat() is not None

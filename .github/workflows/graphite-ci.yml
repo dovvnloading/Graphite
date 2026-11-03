@@ -1,0 +1,30 @@
+name: Graphite CI
+
+on:
+  push:
+    branches:
+      - main
+      - fix/**
+  pull_request:
+
+jobs:
+  regression-tests:
+    runs-on: ubuntu-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install Qt system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libopengl0 libxkbcommon-x11-0 libxcb-cursor0
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Compile modular application
+        run: python -m compileall -q graphite_app/graphite_app
+      - name: Run regression tests
+        run: python -m unittest discover -s tests -v
