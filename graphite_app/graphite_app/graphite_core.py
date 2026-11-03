@@ -181,6 +181,50 @@ class ChatDatabase:
                 })
             return notes
             
+    def save_snapshot(self, title, chat_data, notes_data, pins_data, chat_id=None):
+        """Atomically save a canvas and its associated notes/navigation pins."""
+        with self._connect() as conn:
+            payload = json.dumps(chat_data)
+            if chat_id is None:
+                cursor = conn.execute(
+                    "INSERT INTO chats (title, data, updated_at) "
+                    "VALUES (?, ?, CURRENT_TIMESTAMP)", (title, payload)
+                )
+                chat_id = cursor.lastrowid
+            else:
+                cursor = conn.execute(
+                    "UPDATE chats SET title = ?, data = ?, "
+                    "updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (title, payload, chat_id)
+                )
+                if cursor.rowcount == 0:
+                    raise ValueError(f"Chat {chat_id} no longer exists")
+
+            conn.execute("DELETE FROM notes WHERE chat_id = ?", (chat_id,))
+            for note in notes_data:
+                conn.execute(
+                    "INSERT INTO notes (chat_id, content, position_x, position_y, "
+                    "width, height, color, header_color) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        chat_id, note['content'], note['position']['x'],
+                        note['position']['y'], note['size']['width'],
+                        note['size']['height'], note['color'],
+                        note.get('header_color')
+                    )
+                )
+
+            conn.execute("DELETE FROM pins WHERE chat_id = ?", (chat_id,))
+            for pin in pins_data:
+                conn.execute(
+                    "INSERT INTO pins (chat_id, title, note, position_x, position_y) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (
+                        chat_id, pin['title'], pin['note'],
+                        pin['position']['x'], pin['position']['y']
+                    )
+                )
+        return chat_id
+
     def save_chat(self, title, chat_data):
         """Persist a new chat snapshot and return the inserted row id."""
         with self._connect() as conn:
