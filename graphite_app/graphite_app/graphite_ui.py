@@ -500,19 +500,25 @@ class ChatLibraryDialog(QDialog):
             'Start a new chat? This will clear the current session.',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
-        
-        if reply == QMessageBox.StandardButton.Yes:
-            self.session_manager.current_chat_id = None
-            scene = self.session_manager.window.chat_view.scene()
-            scene.clear()
-            scene.nodes.clear()
-            scene.connections.clear()
-            scene.frames.clear()
-            # <<< FIX: Reset stale reference and UI placeholder
-            self.session_manager.window.current_node = None
-            self.session_manager.window.message_input.setPlaceholderText("Type your message...")
-            self.close()
-                
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        window = self.session_manager.window
+        if not window.confirm_session_transition():
+            return
+
+        scene = window.chat_view.scene()
+        scene.clear()
+        scene.nodes.clear()
+        scene.connections.clear()
+        scene.frames.clear()
+        scene.pins.clear()
+        window.pin_overlay.clear_pins()
+        window.current_node = None
+        window.message_input.setPlaceholderText("Type your message...")
+        self.session_manager.current_chat_id = None
+        self.session_manager.mark_current_state_saved()
+        self.close()
+
     def delete_selected(self):
         current_item = self.chat_list.currentItem()
         if current_item:
@@ -544,15 +550,16 @@ class ChatLibraryDialog(QDialog):
                 
     def load_chat(self, item):
         chat_id = item.data(Qt.ItemDataRole.UserRole)
+        window = self.session_manager.window
+        if not window.confirm_session_transition():
+            return
         try:
             self.session_manager.load_chat(chat_id)
+            window.message_input.setPlaceholderText("Type your message...")
             self.close()
         except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Error",
-                f"Failed to load chat: {str(e)}"
-            )
+            QMessageBox.critical(self, "Error", f"Failed to load chat: {str(e)}")
+
 
 class CustomScrollBar(QWidget):
     valueChanged = Signal(float)
@@ -1992,39 +1999,25 @@ class ChatNodeContextMenu(QMenu):
         from graphite_agents import ChatWorkerThread
         if not self.node.parent_node:
             return
-            
-        user_message = self.node.parent_node.text
-        
-        history = []
-        temp_node = self.node.parent_node
-        while temp_node:
-            if hasattr(temp_node, 'conversation_history'):
-                parent_history = [msg for msg in temp_node.conversation_history 
-                                if msg['role'] != 'assistant' or 
-                                temp_node.parent_node is not None]
-                history = parent_history + history
-            temp_node = temp_node.parent_node
-        
+
         main_window = self.node.scene().window
         if not main_window:
             return
-            
+
+        user_message = self.node.parent_node.text
+        history = main_window.build_conversation_history(self.node.parent_node)
         main_window.message_input.setEnabled(False)
         main_window.send_button.setEnabled(False)
         main_window.loading_overlay.show()
-        
+
         main_window.chat_thread = ChatWorkerThread(
-            main_window.agent,
-            user_message,
-            history
+            main_window.agent, user_message, history
         )
-        
-        main_window.chat_thread.finished.connect(
-            lambda response: self.handle_regenerated_response(response)
-        )
+        main_window.chat_thread.finished.connect(self.handle_regenerated_response)
         main_window.chat_thread.error.connect(main_window.handle_error)
         main_window.chat_thread.start()
-    
+
+
     def handle_regenerated_response(self, new_response):
         try:
             self.node.text = new_response
