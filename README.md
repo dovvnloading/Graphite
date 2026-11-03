@@ -132,57 +132,51 @@ Follow these steps to run Graphite locally.
 
 ### 1. Prerequisites
 
-- **Python:** Python 3.8 or newer
+- **Python:** Python 3.10 or newer
 - **Ollama:** Installed and running — https://ollama.com
 
-### 2. Install an LLM Model
-
-Pull the default model used by the application:
-
-```bash
-ollama pull qwen2.5:7b-instruct
-````
-
-Additional models can be configured inside the application using the model selection dialog.
-
-### 3. Clone and Install Dependencies
-
-Clone the repository:
+### 2. Clone and Install Dependencies
 
 ```bash
 git clone https://github.com/dovvnloading/Graphite.git
 cd Graphite
-```
-
-Create a virtual environment (recommended):
-
-```bash
-# Windows
 python -m venv venv
-.\venv\Scripts\activate
-
-# macOS/Linux
-python3 -m venv venv
-source venv/bin/activate
 ```
 
-Install dependencies:
+Activate the environment with `venv\\Scripts\\activate` on Windows or
+`source venv/bin/activate` on macOS/Linux, then install the modular PySide6 app:
 
 ```bash
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
-If no `requirements.txt` is available:
+### 3. Install the Default Ollama Models
+
+Install and start [Ollama](https://ollama.com), then pull all three default models
+configured in `graphite_app/graphite_app/graphite_config.py`:
 
 ```bash
-pip install PySide6 ollama matplotlib qtawesome
+ollama pull qwen2.5:3b
+ollama pull qwen2.5:7b-instruct
+ollama pull deepseek-coder:6.7b
 ```
 
-### 4. Run the Application
+These are used for session titles, chat, and charts respectively. Graphite checks
+for missing local models at startup and shows the required pull commands.
+To use a remote API instead, select **API** mode and configure its provider and
+models in Settings.
+
+### 4. Run the Modular Application
+
+From the repository root:
 
 ```bash
-python graphite_app.py
+python graphite_app/graphite_app/graphite_app.py
 ```
+
+The top-level `Graphite.py` is an archived PyQt5 version, not the modular
+application. To run that older version instead, install
+`requirements-legacy.txt` and execute `python Graphite.py`.
 
 ## Usage
 
