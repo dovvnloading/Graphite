@@ -402,11 +402,11 @@ class ChatWindow(QMainWindow):
             )
             return
         if missing:
-            commands = "\\n".join(f"ollama pull {model}" for model in missing)
+            commands = "\n".join(f"ollama pull {model}" for model in missing)
             QMessageBox.warning(
                 self, "Missing Ollama Models",
                 "Some local Graphite features need additional models. "
-                "Run these commands in a terminal:\\n\\n" + commands
+                "Run these commands in a terminal:\n\n" + commands
             )
 
     def show_settings(self):
