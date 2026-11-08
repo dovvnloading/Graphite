@@ -188,7 +188,11 @@ class WorkerLifetimeTests(unittest.TestCase):
             loading_overlay=SimpleNamespace(show=MagicMock()),
         )
         scene.window = window
-        menu = SimpleNamespace(node=node)
+        menu = SimpleNamespace(
+            node=node,
+            handle_regenerated_response=MagicMock(),
+            handle_regeneration_error=MagicMock(),
+        )
         # Use real unbound method so no temporary QMenu needs a GUI to exist.
         with patch("graphite_agents.ChatWorkerThread") as thread_class:
             ChatNodeContextMenu.regenerate_response(menu)
