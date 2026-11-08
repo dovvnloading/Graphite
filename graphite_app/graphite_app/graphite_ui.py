@@ -2038,10 +2038,23 @@ class ChatNodeContextMenu(QMenu):
         main_window.chat_thread = ChatWorkerThread(
             main_window.agent, user_message, history
         )
+        # Keep this temporary context-menu receiver alive until the worker
+        # finishes: menu.exec() can return long before the AI response arrives.
+        main_window._pending_regeneration_menu = self
         main_window.chat_thread.finished.connect(self.handle_regenerated_response)
-        main_window.chat_thread.error.connect(main_window.handle_error)
+        main_window.chat_thread.error.connect(self.handle_regeneration_error)
         main_window.chat_thread.start()
 
+
+    def handle_regeneration_error(self, error_message):
+        scene = self.node.scene()
+        main_window = scene.window if scene else None
+        if main_window:
+            try:
+                main_window.handle_error(error_message)
+            finally:
+                if getattr(main_window, '_pending_regeneration_menu', None) is self:
+                    main_window._pending_regeneration_menu = None
 
     def handle_regenerated_response(self, new_response):
         """Keep the original response and its descendants; add an alternate sibling."""
@@ -2078,7 +2091,9 @@ class ChatNodeContextMenu(QMenu):
                 main_window.message_input.setEnabled(True)
                 main_window.send_button.setEnabled(True)
                 main_window.loading_overlay.hide()
-                
+                if getattr(main_window, '_pending_regeneration_menu', None) is self:
+                    main_window._pending_regeneration_menu = None
+
     def cleanup_thread(self):
         if self.takeaway_thread is not None:
             self.takeaway_thread.finished.disconnect()
