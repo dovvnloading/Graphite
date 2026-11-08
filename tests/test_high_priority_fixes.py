@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "graphite_app" / "graphite_app"))
 
 import api_provider
+import graphite_config as config
 from graphite_agents import (
     ChartDataAgent, MAX_CHART_VALUES, MAX_CHART_RESPONSE_CHARS, MAX_SANKEY_NODES
 )
@@ -197,7 +198,7 @@ class ProviderTests(unittest.TestCase):
     def test_ollama_chat_has_finite_timeout(self):
         with patch("api_provider.ollama.Client") as client:
             with patch.object(api_provider, "USE_API_MODE", False):
-                api_provider.chat("chat", [{"role": "user", "content": "Hello"}])
+                api_provider.chat(config.TASK_CHAT, [{"role": "user", "content": "Hello"}])
         self.assertGreater(client.call_args.kwargs["timeout"], 0)
         client.return_value.chat.assert_called_once()
 
