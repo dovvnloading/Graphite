@@ -72,6 +72,26 @@ class ParserTests(unittest.TestCase):
         window = SimpleNamespace(chat_thread=SimpleNamespace(isRunning=lambda: True))
         self.assertTrue(ChatWindow.is_generation_running(window))
 
+    def test_failed_ai_response_node_restores_controls_and_saves_question(self):
+        user_node = SimpleNamespace(
+            conversation_history=[{"role": "user", "content": "Question"}]
+        )
+        scene = SimpleNamespace(add_chat_node=MagicMock(return_value=None))
+        window = SimpleNamespace(
+            chat_view=SimpleNamespace(scene=lambda: scene),
+            message_input=SimpleNamespace(setEnabled=MagicMock()),
+            send_button=SimpleNamespace(setEnabled=MagicMock()),
+            loading_overlay=SimpleNamespace(hide=MagicMock()),
+            session_manager=SimpleNamespace(save_current_chat=MagicMock()),
+        )
+        with patch("graphite_app.QMessageBox.critical") as error_dialog:
+            ChatWindow.handle_response(window, "Answer", user_node)
+        window.message_input.setEnabled.assert_called_with(True)
+        window.send_button.setEnabled.assert_called_with(True)
+        window.loading_overlay.hide.assert_called_once()
+        window.session_manager.save_current_chat.assert_called_once()
+        error_dialog.assert_called_once()
+
 
 class SessionSafetyTests(unittest.TestCase):
     def test_live_note_and_frame_buffers_are_serialized(self):
@@ -149,6 +169,37 @@ class RegenerationTests(unittest.TestCase):
         window.setCurrentNode.assert_called_once_with(alternate)
         window.session_manager.save_current_chat.assert_called_once()
         error_dialog.assert_not_called()
+
+
+class WorkerLifetimeTests(unittest.TestCase):
+    def test_regeneration_keeps_context_menu_alive_until_completion(self):
+        question = SimpleNamespace(text="Prompt", parent_node=None)
+        node = SimpleNamespace(parent_node=question)
+        scene = SimpleNamespace(window=None)
+        node.scene = lambda: scene
+        window = SimpleNamespace(
+            agent=object(),
+            is_generation_running=lambda: False,
+            build_conversation_history=lambda parent: [
+                {"role": "user", "content": "Prompt"}
+            ],
+            message_input=SimpleNamespace(setEnabled=MagicMock()),
+            send_button=SimpleNamespace(setEnabled=MagicMock()),
+            loading_overlay=SimpleNamespace(show=MagicMock()),
+        )
+        scene.window = window
+        menu = SimpleNamespace(node=node)
+        # Use real unbound method so no temporary QMenu needs a GUI to exist.
+        with patch("graphite_agents.ChatWorkerThread") as thread_class:
+            ChatNodeContextMenu.regenerate_response(menu)
+        self.assertIs(window._pending_regeneration_menu, menu)
+        thread_class.return_value.finished.connect.assert_called_once()
+        thread_class.return_value.error.connect.assert_called_once()
+
+        window.handle_error = MagicMock()
+        ChatNodeContextMenu.handle_regeneration_error(menu, "Network error")
+        self.assertIsNone(window._pending_regeneration_menu)
+        window.handle_error.assert_called_once_with("Network error")
 
 
 class ChartSafetyTests(unittest.TestCase):
