@@ -505,7 +505,23 @@ class ChatWindow(QMainWindow):
                 {'role': 'assistant', 'content': response}
             ]
         )
-        
+        if ai_node is None:
+            # The user's question is still on the canvas. Keep it recoverable
+            # instead of leaving the input disabled after a rendering failure.
+            self.message_input.setEnabled(True)
+            self.send_button.setEnabled(True)
+            self.loading_overlay.hide()
+            try:
+                self.session_manager.save_current_chat()
+            except Exception as exc:
+                QMessageBox.warning(self, "Auto-save Failed", f"Your canvas is unsaved: {exc}")
+            QMessageBox.critical(
+                self, "Response Failed",
+                "The generated response could not be displayed. "
+                "Your question remains on the canvas."
+            )
+            return
+
         # Update current node and view
         self.current_node = ai_node
         self.message_input.clear()
