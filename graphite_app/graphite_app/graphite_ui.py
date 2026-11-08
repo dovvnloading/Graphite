@@ -529,9 +529,18 @@ class ChatLibraryDialog(QDialog):
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
             if reply == QMessageBox.StandardButton.Yes:
+                is_active = chat_id == self.session_manager.current_chat_id
                 self.session_manager.db.delete_chat(chat_id)
+                if is_active:
+                    self.session_manager.detach_deleted_chat(chat_id)
+                    QMessageBox.information(
+                        self, "Canvas Retained",
+                        "The active chat was deleted from the library. "
+                        "Your current canvas remains open as an unsaved copy. "
+                        "Save it to create a new chat."
+                    )
                 self.refresh_chat_list()
-                
+
     def rename_selected(self):
         current_item = self.chat_list.currentItem()
         if current_item:
@@ -1361,14 +1370,18 @@ class ChatNode(QGraphicsItem):
                     current_text = ""
                 continue
             
-            if line.startswith('[h'):
+            # Only treat correctly formatted [hN] tokens as headers. Literal
+            # messages such as "[hello]" must never crash node creation.
+            header_end = line.find(']') if line.startswith('[h') else -1
+            header_level = line[2:header_end] if header_end > 2 else ""
+            if header_level.isdecimal() and int(header_level) > 0:
                 if current_text:
                     self.blocks.append(TextBlock(current_text.strip()))
                     current_text = ""
-            
-                level = int(line[2])
-                content = line[4:].strip()
-            
+
+                level = int(header_level)
+                content = line[header_end + 1:].strip()
+
                 font_size = max(10, 14 - level)
                 font = QFont('Segoe UI', font_size, QFont.Weight.Bold)
                 self.blocks.append(TextBlock(content, 'header', font))
@@ -1942,7 +1955,13 @@ class ChatNodeContextMenu(QMenu):
             scene = self.node.scene()
             if not scene:
                 return
-            
+            if scene.window and scene.window.is_generation_running():
+                QMessageBox.information(
+                    scene.window, "Generation in Progress",
+                    "Finish the current AI task before deleting nodes."
+                )
+                return
+
             children = self.node.children[:]
             parent_node = self.node.parent_node
             
@@ -2000,8 +2019,14 @@ class ChatNodeContextMenu(QMenu):
         if not self.node.parent_node:
             return
 
-        main_window = self.node.scene().window
+        scene = self.node.scene()
+        main_window = scene.window if scene else None
         if not main_window:
+            return
+        if main_window.is_generation_running():
+            QMessageBox.information(
+                main_window, "Generation in Progress", "Finish the current AI task first."
+            )
             return
 
         user_message = self.node.parent_node.text
@@ -2013,52 +2038,62 @@ class ChatNodeContextMenu(QMenu):
         main_window.chat_thread = ChatWorkerThread(
             main_window.agent, user_message, history
         )
+        # Keep this temporary context-menu receiver alive until the worker
+        # finishes: menu.exec() can return long before the AI response arrives.
+        main_window._pending_regeneration_menu = self
         main_window.chat_thread.finished.connect(self.handle_regenerated_response)
-        main_window.chat_thread.error.connect(main_window.handle_error)
+        main_window.chat_thread.error.connect(self.handle_regeneration_error)
         main_window.chat_thread.start()
 
 
+    def handle_regeneration_error(self, error_message):
+        scene = self.node.scene()
+        main_window = scene.window if scene else None
+        if main_window:
+            try:
+                main_window.handle_error(error_message)
+            finally:
+                if getattr(main_window, '_pending_regeneration_menu', None) is self:
+                    main_window._pending_regeneration_menu = None
+
     def handle_regenerated_response(self, new_response):
+        """Keep the original response and its descendants; add an alternate sibling."""
+        scene = self.node.scene()
+        main_window = scene.window if scene else None
         try:
-            self.node.text = new_response
-            self.node.raw_text = new_response
-            self.node.process_text(new_response)
-            self.node._create_layouts()
-            
-            if self.node.parent_node:
-                parent_history = self.node.parent_node.conversation_history[:] if self.node.parent_node.conversation_history else []
-                
-                self.node.conversation_history = parent_history + [
+            if not main_window:
+                return
+            parent = self.node.parent_node
+            if parent is None or parent not in scene.nodes:
+                raise ValueError("The original question is no longer available.")
+
+            history = main_window.build_conversation_history(parent)
+            alternate = scene.add_chat_node(
+                new_response,
+                is_user=False,
+                parent_node=parent,
+                conversation_history=history + [
                     {'role': 'assistant', 'content': new_response}
                 ]
-                
-                for child in self.node.children:
-                    if child.conversation_history:
-                        divergence_point = len(parent_history)
-                        child.conversation_history = (
-                            self.node.conversation_history + 
-                            child.conversation_history[divergence_point:]
-                        )
-            
-            main_window = self.node.scene().window
+            )
+            if alternate is None:
+                raise RuntimeError("Could not create the alternate response.")
+            main_window.setCurrentNode(alternate)
+            main_window.chat_view.centerOn(alternate)
+            main_window.session_manager.save_current_chat()
+        except Exception as exc:
+            QMessageBox.critical(
+                main_window, "Regeneration Failed",
+                f"Could not finish regenerating the response: {exc}"
+            )
+        finally:
             if main_window:
                 main_window.message_input.setEnabled(True)
                 main_window.send_button.setEnabled(True)
                 main_window.loading_overlay.hide()
-                
-                main_window.session_manager.save_current_chat()
-            
-            self.node.update()
-            
-        except Exception as e:
-            QMessageBox.critical(None, "Error", f"An error occurred while regenerating: {str(e)}")
-            
-            main_window = self.node.scene().window
-            if main_window:
-                main_window.message_input.setEnabled(True)
-                main_window.send_button.setEnabled(True)
-                main_window.loading_overlay.hide()
-                
+                if getattr(main_window, '_pending_regeneration_menu', None) is self:
+                    main_window._pending_regeneration_menu = None
+
     def cleanup_thread(self):
         if self.takeaway_thread is not None:
             self.takeaway_thread.finished.disconnect()
@@ -5034,14 +5069,27 @@ class ModelSelectionDialog(QDialog):
 
         layout.addLayout(button_layout)
 
+    def _download_is_running(self):
+        return self.worker_thread is not None and self.worker_thread.isRunning()
+
+    def reject(self):
+        # QDialog.reject() can close the dialog without invoking closeEvent.
+        if self._download_is_running():
+            QMessageBox.information(
+                self, "Download in Progress",
+                "Finish downloading the Ollama model before closing this dialog."
+            )
+            return
+        super().reject()
+
     def closeEvent(self, event):
-        if self.worker_thread and self.worker_thread.isRunning():
-            try:
-                self.worker_thread.status_update.disconnect(self.handle_status_update)
-                self.worker_thread.finished.disconnect(self.handle_worker_finished)
-                self.worker_thread.error.disconnect(self.handle_worker_error)
-            except RuntimeError:
-                pass
+        if self._download_is_running():
+            QMessageBox.information(
+                self, "Download in Progress",
+                "Finish downloading the Ollama model before closing this dialog."
+            )
+            event.ignore()
+            return
         super().closeEvent(event)
 
     def on_combo_change(self, text):
@@ -5079,12 +5127,16 @@ class ModelSelectionDialog(QDialog):
         self.status_label.setStyleSheet("color: #3498db;")
 
     def handle_worker_finished(self, message, model_name):
+        # The custom finished signal is emitted just before run() returns.
+        # Join it before closing, so Qt never destroys an active QThread.
+        self.worker_thread.wait()
         config.set_current_model(model_name)
         self.reset_button()
         QMessageBox.information(self, "Success", message)
         self.accept()
 
     def handle_worker_error(self, error_message):
+        self.worker_thread.wait()
         self.status_label.setText(f"Error: {error_message}")
         self.status_label.setStyleSheet("color: #e74c3c;")
         self.reset_button()

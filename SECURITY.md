@@ -17,7 +17,7 @@ We encourage users to update to the latest version to receive security updates.
 
 The security of Graphite is a top priority. We appreciate the community's efforts in responsible disclosure and will make every effort to address vulnerabilities in a timely manner.
 
-If you discover a security vulnerability, please report it by opening an issue on the [GitHub repository](https://github.com/dovvnloading/Graphite/issues).
+If you discover a potential security vulnerability, **do not open a public GitHub issue with exploit details**. Instead, use the repository's **Security → Report a vulnerability** option if private vulnerability reporting is enabled. If that option is unavailable, contact the maintainers privately to arrange a secure reporting channel before sharing sensitive technical details.
 
 When reporting a vulnerability, please include the following details:
 

@@ -337,7 +337,7 @@ class ChatSessionManager:
         return {
             'nodes': [self.window.chat_view.scene().nodes.index(node) for node in frame.nodes],
             'position': {'x': frame.pos().x(), 'y': frame.pos().y()},
-            'note': frame.note,
+            'note': frame.edit_text if frame.editing else frame.note,
             'size': {
                 'width': frame.rect.width(),
                 'height': frame.rect.height()
@@ -349,7 +349,7 @@ class ChatSessionManager:
     def serialize_note(self, note):
         """Convert a Note to a serializable dictionary"""
         return {
-            'content': note.content,
+            'content': note.edit_text if note.editing else note.content,
             'position': {'x': note.pos().x(), 'y': note.pos().y()},
             'size': {'width': note.width, 'height': note.height},
             'color': note.color,
@@ -401,6 +401,13 @@ class ChatSessionManager:
         if self.current_chat_id is None and not self._has_content(current):
             return False
         return current != self._saved_snapshot
+
+    def detach_deleted_chat(self, chat_id):
+        """Keep an active deleted chat on the canvas as an unsaved new session."""
+        if self.current_chat_id == chat_id:
+            self.current_chat_id = None
+            # None cannot equal a snapshot, so closing or switching prompts to save.
+            self._saved_snapshot = None
 
     def mark_current_state_saved(self):
         """Record a clean baseline after a new session or successful load."""

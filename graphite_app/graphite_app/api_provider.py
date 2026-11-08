@@ -3,6 +3,9 @@ import ollama
 import graphite_config as config
 
 USE_API_MODE = False
+# Bound network waits so user-initiated jobs cannot hang indefinitely.
+OLLAMA_REQUEST_TIMEOUT_SECONDS = 180.0
+API_REQUEST_TIMEOUT_SECONDS = 60.0
 API_PROVIDER_TYPE = None
 API_CLIENT = None
 API_MODELS = {
@@ -76,7 +79,9 @@ def chat(task: str, messages: list, **kwargs) -> dict:
         model = config.OLLAMA_MODELS.get(task)
         if not model:
             raise ValueError(f"No Ollama model configured for task: {task}")
-        return ollama.chat(model=model, messages=messages, **kwargs)
+        return ollama.Client(timeout=OLLAMA_REQUEST_TIMEOUT_SECONDS).chat(
+            model=model, messages=messages, **kwargs
+        )
     else:
         if not API_CLIENT:
             raise RuntimeError("API client not initialized. Configure API settings first.")
@@ -116,7 +121,8 @@ def chat(task: str, messages: list, **kwargs) -> dict:
             
             response = gemini_model.generate_content(
                 contents=gemini_history,
-                generation_config=kwargs
+                generation_config=kwargs,
+                request_options={'timeout': API_REQUEST_TIMEOUT_SECONDS}
             )
             
             return {
@@ -142,7 +148,9 @@ def initialize_api(provider: str, api_key: str, base_url: str = None):
         if not base_url:
             base_url = 'https://api.openai.com/v1'
 
-        API_CLIENT = OpenAI(api_key=api_key, base_url=base_url)
+        API_CLIENT = OpenAI(
+            api_key=api_key, base_url=base_url, timeout=API_REQUEST_TIMEOUT_SECONDS
+        )
 
     elif provider == config.API_PROVIDER_GEMINI:
         try:

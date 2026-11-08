@@ -226,16 +226,21 @@ class ChatWindow(QMainWindow):
         else:
             QMessageBox.information(self, "Nothing to Save", "The canvas is empty.")
 
+    def is_generation_running(self):
+        """True if any active AI generation task is still running."""
+        return any(
+            (worker := getattr(self, name, None)) is not None and worker.isRunning()
+            for name in ('chat_thread', 'takeaway_thread', 'explainer_thread', 'chart_thread')
+        )
+
     def confirm_session_transition(self):
         """Protect unsaved work before loading, clearing, or closing a session."""
-        for worker_name in ('chat_thread', 'takeaway_thread', 'explainer_thread', 'chart_thread'):
-            worker = getattr(self, worker_name, None)
-            if worker is not None and worker.isRunning():
-                QMessageBox.warning(
-                    self, "Generation in Progress",
-                    "Finish the current AI task before switching or closing chats."
-                )
-                return False
+        if self.is_generation_running():
+            QMessageBox.warning(
+                self, "Generation in Progress",
+                "Finish the current AI task before switching or closing chats."
+            )
+            return False
         if not self.session_manager.has_unsaved_changes():
             return True
         choice = QMessageBox.question(
@@ -446,7 +451,10 @@ class ChatWindow(QMainWindow):
         message = self.message_input.text().strip()
         if not message:
             return
-            
+        if self.is_generation_running():
+            QMessageBox.information(self, "Generation in Progress", "An AI task is already running.")
+            return
+
         # Disable input during processing
         self.message_input.setEnabled(False)
         self.send_button.setEnabled(False)
@@ -459,12 +467,18 @@ class ChatWindow(QMainWindow):
 
         # Add user message node
         user_node = self.chat_view.scene().add_chat_node(
-            message, 
-            is_user=True, 
+            message,
+            is_user=True,
             parent_node=self.current_node,
             conversation_history=history
         )
-        
+        if user_node is None:
+            self.message_input.setEnabled(True)
+            self.send_button.setEnabled(True)
+            self.loading_overlay.hide()
+            QMessageBox.critical(self, "Message Failed", "Could not create the message node.")
+            return
+
         # Update conversation history
         user_node.conversation_history = history + [
             {'role': 'user', 'content': message}
@@ -491,7 +505,23 @@ class ChatWindow(QMainWindow):
                 {'role': 'assistant', 'content': response}
             ]
         )
-        
+        if ai_node is None:
+            # The user's question is still on the canvas. Keep it recoverable
+            # instead of leaving the input disabled after a rendering failure.
+            self.message_input.setEnabled(True)
+            self.send_button.setEnabled(True)
+            self.loading_overlay.hide()
+            try:
+                self.session_manager.save_current_chat()
+            except Exception as exc:
+                QMessageBox.warning(self, "Auto-save Failed", f"Your canvas is unsaved: {exc}")
+            QMessageBox.critical(
+                self, "Response Failed",
+                "The generated response could not be displayed. "
+                "Your question remains on the canvas."
+            )
+            return
+
         # Update current node and view
         self.current_node = ai_node
         self.message_input.clear()
@@ -502,8 +532,11 @@ class ChatWindow(QMainWindow):
         self.send_button.setEnabled(True)
         self.loading_overlay.hide()
         
-        # Auto-save after response
-        self.session_manager.save_current_chat()
+        # A failed save should not leave the UI broken; the canvas remains available.
+        try:
+            self.session_manager.save_current_chat()
+        except Exception as exc:
+            QMessageBox.warning(self, "Auto-save Failed", f"Your canvas is unsaved: {exc}")
         
     def handle_error(self, error_message):
         QMessageBox.critical(self, "Error", f"An error occurred: {error_message}")
@@ -524,6 +557,9 @@ class ChatWindow(QMainWindow):
             
     def generate_takeaway(self, node):
         """Generate takeaway for the given node"""
+        if self.is_generation_running():
+            QMessageBox.information(self, "Generation in Progress", "Finish the current AI task first.")
+            return
         try:
             # Cleanup any existing thread
             self.cleanup_takeaway_thread()
@@ -585,6 +621,9 @@ class ChatWindow(QMainWindow):
             
     def generate_explainer(self, node):
         """Generate simple explanation for the given node"""
+        if self.is_generation_running():
+            QMessageBox.information(self, "Generation in Progress", "Finish the current AI task first.")
+            return
         try:
             # Cleanup any existing thread
             self.cleanup_explainer_thread()
@@ -638,6 +677,9 @@ class ChatWindow(QMainWindow):
 
     def generate_chart(self, node, chart_type):
         """Generate chart for the given node"""
+        if self.is_generation_running():
+            QMessageBox.information(self, "Generation in Progress", "Finish the current AI task first.")
+            return
         try:
             # Show loading overlay
             self.loading_overlay.show()
