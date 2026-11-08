@@ -1,8 +1,16 @@
 import ollama
 import json
+import math
 from PySide6.QtCore import QThread, Signal, QPointF
 import graphite_config as config
 import api_provider
+
+MAX_CHART_VALUES = 2000
+MAX_CHART_BINS = 100
+MAX_SANKEY_NODES = 75
+MAX_SANKEY_LINKS = 300
+MAX_CHART_RESPONSE_CHARS = 256_000
+
 
 class ChatWorkerThread(QThread):
     """Run chat generation off the UI thread and emit success/error signals."""
@@ -347,12 +355,17 @@ IMPORTANT:
         """Convert model-produced values into a clean float list."""
         if not isinstance(values, list):
             raise ValueError("Values must be a list")
+        if len(values) > MAX_CHART_VALUES:
+            raise ValueError(f"Chart exceeds the limit of {MAX_CHART_VALUES} values")
         normalized = []
         for index, value in enumerate(values):
             try:
-                normalized.append(float(value))
-            except (TypeError, ValueError):
-                raise ValueError(f"Value at index {index} is not numeric")
+                number = float(value)
+            except (TypeError, ValueError, OverflowError) as exc:
+                raise ValueError(f"Value at index {index} is not numeric") from exc
+            if not math.isfinite(number):
+                raise ValueError(f"Value at index {index} must be finite")
+            normalized.append(number)
         return normalized
 
     def normalize_chart_payload(self, data, chart_type):
@@ -385,7 +398,9 @@ IMPORTANT:
                 bins = int(float(bins))
             except (TypeError, ValueError):
                 bins = 10
-            normalized['bins'] = max(1, bins)
+            if not 1 <= bins <= MAX_CHART_BINS:
+                raise ValueError(f"Histogram bins must be between 1 and {MAX_CHART_BINS}")
+            normalized['bins'] = bins
 
         if chart_type == 'sankey':
             sankey_data = normalized.get('data', {})
@@ -398,6 +413,11 @@ IMPORTANT:
                 nodes = []
             if not isinstance(links, list):
                 links = []
+            if len(nodes) > MAX_SANKEY_NODES or len(links) > MAX_SANKEY_LINKS:
+                raise ValueError(
+                    f"Sankey charts support at most {MAX_SANKEY_NODES} nodes "
+                    f"and {MAX_SANKEY_LINKS} links"
+                )
 
             clean_nodes = []
             for i, node in enumerate(nodes):
@@ -412,7 +432,9 @@ IMPORTANT:
                     source = int(link.get('source'))
                     target = int(link.get('target'))
                     value = float(link.get('value'))
-                except (TypeError, ValueError):
+                except (TypeError, ValueError, OverflowError):
+                    continue
+                if not math.isfinite(value):
                     continue
                 clean_links.append({'source': source, 'target': target, 'value': value})
 
@@ -494,7 +516,9 @@ IMPORTANT:
                     return False, "Labels must be a list"
                 if len(data['labels']) != len(data['values']):
                     return False, "Labels and values must have the same length"
-            
+                if any(v < 0 for v in data['values']) or sum(data['values']) <= 0:
+                    return False, "Pie charts need non-negative values with a positive total"
+
             # Validate numeric values for non-Sankey charts
             if chart_type != 'sankey':
                 try:
@@ -548,7 +572,10 @@ IMPORTANT:
             
             # Using a more specialized model for code/JSON generation
             response = api_provider.chat(task=config.TASK_CHART, messages=messages)
-            cleaned_response = self.clean_response(response['message']['content'])
+            raw_text = response['message']['content']
+            if len(raw_text) > MAX_CHART_RESPONSE_CHARS:
+                raise ValueError("Chart response is too large to render safely")
+            cleaned_response = self.clean_response(raw_text)
             
             # Parse JSON
             try:
