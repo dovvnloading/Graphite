@@ -1955,7 +1955,13 @@ class ChatNodeContextMenu(QMenu):
             scene = self.node.scene()
             if not scene:
                 return
-            
+            if scene.window and scene.window.is_generation_running():
+                QMessageBox.information(
+                    scene.window, "Generation in Progress",
+                    "Finish the current AI task before deleting nodes."
+                )
+                return
+
             children = self.node.children[:]
             parent_node = self.node.parent_node
             
@@ -5048,14 +5054,27 @@ class ModelSelectionDialog(QDialog):
 
         layout.addLayout(button_layout)
 
+    def _download_is_running(self):
+        return self.worker_thread is not None and self.worker_thread.isRunning()
+
+    def reject(self):
+        # QDialog.reject() can close the dialog without invoking closeEvent.
+        if self._download_is_running():
+            QMessageBox.information(
+                self, "Download in Progress",
+                "Finish downloading the Ollama model before closing this dialog."
+            )
+            return
+        super().reject()
+
     def closeEvent(self, event):
-        if self.worker_thread and self.worker_thread.isRunning():
-            try:
-                self.worker_thread.status_update.disconnect(self.handle_status_update)
-                self.worker_thread.finished.disconnect(self.handle_worker_finished)
-                self.worker_thread.error.disconnect(self.handle_worker_error)
-            except RuntimeError:
-                pass
+        if self._download_is_running():
+            QMessageBox.information(
+                self, "Download in Progress",
+                "Finish downloading the Ollama model before closing this dialog."
+            )
+            event.ignore()
+            return
         super().closeEvent(event)
 
     def on_combo_change(self, text):
@@ -5093,12 +5112,16 @@ class ModelSelectionDialog(QDialog):
         self.status_label.setStyleSheet("color: #3498db;")
 
     def handle_worker_finished(self, message, model_name):
+        # The custom finished signal is emitted just before run() returns.
+        # Join it before closing, so Qt never destroys an active QThread.
+        self.worker_thread.wait()
         config.set_current_model(model_name)
         self.reset_button()
         QMessageBox.information(self, "Success", message)
         self.accept()
 
     def handle_worker_error(self, error_message):
+        self.worker_thread.wait()
         self.status_label.setText(f"Error: {error_message}")
         self.status_label.setStyleSheet("color: #e74c3c;")
         self.reset_button()
